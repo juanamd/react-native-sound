@@ -5,6 +5,7 @@ import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
 import android.net.Uri;
 import android.media.AudioManager;
+import android.media.AudioAttributes;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
@@ -20,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.io.IOException;
 import android.util.Log;
+import android.os.Build;
 
 public class RNSoundModule extends ReactContextBaseJavaModule {
   Map<Integer, MediaPlayer> playerPool = new HashMap<>();
@@ -38,7 +40,8 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void prepare(final String fileName, final Integer key, final ReadableMap options, final Callback callback) {
-    MediaPlayer player = createMediaPlayer(fileName);
+    boolean useAlarmChannel = options.hasKey("useAlarmChannel") ? options.getBoolean("useAlarmChannel") : false;
+    MediaPlayer player = createMediaPlayer(fileName, useAlarmChannel);
     if (player == null) {
       WritableMap e = Arguments.createMap();
       e.putInt("code", -1);
@@ -91,20 +94,33 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 
     try {
       player.prepareAsync();
-    } catch (IllegalStateException ignored) {
-      // When loading files from a file, we useMediaPlayer.create, which actually
-      // prepares the audio for us already. So we catch and ignore this error
+    } catch (IllegalStateException illegalStateexception) {
+      Log.e("RNSoundModule", "Exception", illegalStateexception);
     }
   }
 
-  protected MediaPlayer createMediaPlayer(final String fileName) {
+  protected MediaPlayer createMediaPlayer(final String fileName, final boolean useAlarmChannel) {
+    MediaPlayer mediaPlayer = new MediaPlayer();
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        AudioAttributes aa = new AudioAttributes.Builder()
+                .setUsage(useAlarmChannel ? AudioAttributes.USAGE_ALARM : AudioAttributes.USAGE_UNKNOWN)
+                .setContentType(AudioAttributes.CONTENT_TYPE_UNKNOWN)
+                .build();
+        mediaPlayer.setAudioAttributes(aa);
+    } else mediaPlayer.setAudioStreamType(useAlarmChannel ? AudioManager.STREAM_ALARM : AudioManager.STREAM_MUSIC);
+
     int res = this.context.getResources().getIdentifier(fileName, "raw", this.context.getPackageName());
     if (res != 0) {
-      return MediaPlayer.create(this.context, res);
+      Uri uri = Uri.parse("android.resource://"+this.context.getPackageName()+"/raw/"+fileName);   
+      try {
+        mediaPlayer.setDataSource(this.context, uri);
+      } catch(IOException e) {
+        Log.e("RNSoundModule", "Exception", e);
+        return null;
+      }
+      return mediaPlayer;
     }
     if(fileName.startsWith("http://") || fileName.startsWith("https://")) {
-      MediaPlayer mediaPlayer = new MediaPlayer();
-      mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
       Log.i("RNSoundModule", fileName);
       try {
         mediaPlayer.setDataSource(fileName);
@@ -118,8 +134,13 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
     File file = new File(fileName);
     if (file.exists()) {
       Uri uri = Uri.fromFile(file);
-      // Mediaplayer is already prepared here.
-      return MediaPlayer.create(this.context, uri);
+      try {
+        mediaPlayer.setDataSource(this.context, uri);
+      } catch(IOException e) {
+        Log.e("RNSoundModule", "Exception", e);
+        return null;
+      }
+      return mediaPlayer;
     }
     return null;
   }
