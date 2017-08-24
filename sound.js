@@ -7,7 +7,7 @@ var resolveAssetSource = require("react-native/Libraries/Image/resolveAssetSourc
 var nextKey = 0;
 
 function isRelativePath(path) {
-  return !/^(\/|http(s?))/.test(path);
+  return !/^(\/|http(s?)|asset)/.test(path);
 }
 
 function Sound(filename, basePath, onError, options) {
@@ -43,7 +43,7 @@ function Sound(filename, basePath, onError, options) {
     if (error === null) {
       this._loaded = true;
     }
-    onError && onError(error);
+    onError && onError(error, props);
   });
 }
 
@@ -70,6 +70,13 @@ Sound.prototype.pause = function(callback) {
 Sound.prototype.stop = function(callback) {
   if (this._loaded) {
     RNSound.stop(this._key, () => { callback && callback() });
+  }
+  return this;
+};
+
+Sound.prototype.reset = function() {
+  if (this._loaded && IsAndroid) {
+    RNSound.reset(this._key);
   }
   return this;
 };
@@ -101,6 +108,20 @@ Sound.prototype.setVolume = function(value) {
     } else {
       RNSound.setVolume(this._key, value);
     }
+  }
+  return this;
+};
+
+Sound.prototype.getSystemVolume = function(callback) {
+  if(IsAndroid) {
+    RNSound.getSystemVolume(callback);
+  }
+  return this;
+};
+
+Sound.prototype.setSystemVolume = function(value) {
+  if (IsAndroid) {
+    RNSound.setSystemVolume(value);
   }
   return this;
 };
