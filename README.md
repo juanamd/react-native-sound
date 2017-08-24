@@ -1,4 +1,4 @@
-# react-native-sound
+# react-native-sound [![Gitter chat](https://badges.gitter.im/gitterHQ/services.png)](https://gitter.im/react-native-sound/Help)
 
 React Native module for playing sound clips on iOS, Android, and Windows.
 
@@ -6,7 +6,7 @@ React Native module for playing sound clips on iOS, Android, and Windows.
 
 Feature | iOS | Android | Windows
 ---|---|---|---
-Load sound from the app bundle | ✓ | ✓ | ✓  
+Load sound from the app bundle | ✓ | ✓ | ✓
 Load sound from other directories | ✓ | ✓ | ✓
 Load sound from the network | ✓ | ✓ |
 Play sound | ✓ | ✓ | ✓
@@ -14,10 +14,12 @@ Playback completion callback | ✓ | ✓ | ✓
 Pause | ✓ | ✓ | ✓
 Resume | ✓ | ✓ | ✓
 Stop | ✓ | ✓ | ✓
+Reset |  | ✓ | 
 Release resource | ✓ | ✓ | ✓
 Get duration | ✓ | ✓ | ✓
 Get number of channels | ✓ |   |
 Get/set volume | ✓ | ✓ | ✓
+Get/set system volume |   | ✓ |
 Get/set pan | ✓ |   |
 Get/set loops | ✓ | ✓ | ✓
 Get/set current time | ✓ | ✓ | ✓
@@ -140,7 +142,7 @@ var whoosh = new Sound('whoosh.mp3', Sound.MAIN_BUNDLE, (error) => {
   if (error) {
     console.log('failed to load the sound', error);
     return;
-  } 
+  }
   // loaded successfully
   console.log('duration in seconds: ' + whoosh.getDuration() + 'number of channels: ' + whoosh.getNumberOfChannels());
 });
@@ -151,6 +153,9 @@ whoosh.play((success) => {
     console.log('successfully finished playing');
   } else {
     console.log('playback failed due to audio decoding errors');
+    // reset the player to its uninitialized state (android only)
+    // this is the only option to recover after an error occured and use the player again
+    whoosh.reset();
   }
 });
 
@@ -216,6 +221,9 @@ Pause the sound.
 
 Stop playback and set the seek position to 0.
 
+### `reset()`
+Reset the audio player to its uninitialized state (Android only)
+
 ### `release()`
 Release the audio player resource associated with the instance.
 
@@ -230,6 +238,12 @@ Return the volume of the audio player (not the system-wide volume), ranging from
 
 ### `setVolume(value)`
 `value` {number} Set the volume, ranging from `0.0` (silence) through `1.0` (full volume).
+
+### `getSystemVolume(callback)`
+`callback` {?function(systemVolume)} Return the system-wide volume of the audio player, ranging from `0.0` (silence) through `1.0` (full volume). (Android only).
+
+### `setSystemVolume(value)`
+`value` {number} Set the system-side volume, ranging from `0.0` (silence) through `1.0` (full volume).  (Android only).
 
 ### `getPan()`
 Return the stereo pan position of the audio player (not the system-wide pan), ranging from `-1.0` (full left) through `1.0` (full right). The default value is `0.0` (center).
@@ -272,7 +286,7 @@ Deprecated. Use the static method `Sound.setCategory` instead.
 
 `value` {string} Sets AVAudioSession category, which allows playing sound in background, stop sound playback when phone is locked, etc. Parameter options: "Ambient", "SoloAmbient", "Playback", "Record", "PlayAndRecord", "AudioProcessing", "MultiRoute".
 
-More info about each category can be found in https://developer.apple.com/library/ios/documentation/AVFoundation/Reference/AVAudioSession_ClassReference/#//apple_ref/doc/constant_group/Audio_Session_Categories
+More info about each category can be found in https://developer.apple.com/library/content/documentation/Audio/Conceptual/AudioSessionProgrammingGuide/AudioSessionCategoriesandModes/AudioSessionCategoriesandModes.html
 
 `mixWithOthers` {boolean} can be set to true to force mixing with other audio sessions.
 
