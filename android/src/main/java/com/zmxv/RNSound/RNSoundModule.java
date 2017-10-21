@@ -104,13 +104,17 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		mediaPlayer.setOnErrorListener(this.createOnErrorListener(callback, false));
 		mediaPlayer.setOnPreparedListener(this.createOnPreparedListener(callback, key, this));
 		mediaPlayer.setAudioStreamType(useAlarmChannel ? AudioManager.STREAM_ALARM : AudioManager.STREAM_MUSIC);
-		this.setMediaPlayerDataSource(mediaPlayer, fileName);
-
+		
+		this.setMediaPlayerDataSource(mediaPlayer, fileName, callback);
+		
 		try {
 			Log.i("RNSoundModule", "prepareAsync...");
 			mediaPlayer.prepareAsync();
 		} catch(IllegalStateException illegalStateException) {
-			Log.e("RNSoundModule", "Exception in method prepare", illegalStateException);
+			Log.e("RNSoundModule", "IllegalStateException in method prepare", illegalStateException);
+			this.onResourceNotFound(callback);
+		} catch(Exception exception) {
+			Log.e("RNSoundModule", "Exception in method prepare", exception);
 			this.onResourceNotFound(callback);
 		}
 	}
@@ -127,51 +131,43 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	protected void setMediaPlayerDataSource(final MediaPlayer mediaPlayer, final String fileName) {
+	protected void setMediaPlayerDataSource(final MediaPlayer mediaPlayer, final String fileName, final Callback callback) {
 		int res = this.context.getResources().getIdentifier(fileName, "raw", this.context.getPackageName());
 
-		if (res != 0) this.setDataSourceFromUri(mediaPlayer, fileName);
-		else if (fileName.startsWith("asset:/")) this.setDataSourceFromAsset(mediaPlayer, fileName);
-		else if (fileName.startsWith("http://") || fileName.startsWith("https://")) this.setDataSourceFromNetwork(mediaPlayer, fileName);
-		else this.setDataSourceFromFile(mediaPlayer, fileName);
+		try {
+			if (res != 0) this.setDataSourceFromUri(mediaPlayer, fileName);
+			else if (fileName.startsWith("asset:/")) this.setDataSourceFromAsset(mediaPlayer, fileName);
+			else if (fileName.startsWith("http://") || fileName.startsWith("https://")) this.setDataSourceFromNetwork(mediaPlayer, fileName);
+			else this.setDataSourceFromFile(mediaPlayer, fileName);
+		} catch(IOException ioException) {
+			Log.e("RNSoundModule", "IOException in method setMediaPlayerDataSource", ioException);
+			this.onResourceNotFound(callback);
+		} catch(Exception exception) {
+			Log.e("RNSoundModule", "Exception in method setMediaPlayerDataSource", exception);
+			this.onResourceNotFound(callback);
+		}
 	}
 
-	protected void setDataSourceFromUri(final MediaPlayer mediaPlayer, final String fileName) {
+	protected void setDataSourceFromUri(final MediaPlayer mediaPlayer, final String fileName) throws IOException {
 		Uri uri = Uri.parse("android.resource://" + this.context.getPackageName() + "/raw/" + fileName);
-		try {
-			mediaPlayer.setDataSource(this.context, uri);
-		} catch(IOException exception) {
-			Log.e("RNSoundModule", "Exception in method createMediaPlayerFromUri", exception);
-		}
+		mediaPlayer.setDataSource(this.context, uri);
 	}
 
-	protected void setDataSourceFromAsset(final MediaPlayer mediaPlayer, final String fileName) {
-		try {
-			AssetFileDescriptor desc = this.context.getAssets().openFd(fileName.replace("asset:/", ""));
-			mediaPlayer.setDataSource(desc.getFileDescriptor(), desc.getStartOffset(), desc.getLength());
-			desc.close();
-		} catch(IOException exception) {
-			Log.e("RNSoundModule", "Exception in method createMediaPlayerFromAsset", exception);
-		}
+	protected void setDataSourceFromAsset(final MediaPlayer mediaPlayer, final String fileName) throws IOException {
+		AssetFileDescriptor desc = this.context.getAssets().openFd(fileName.replace("asset:/", ""));
+		mediaPlayer.setDataSource(desc.getFileDescriptor(), desc.getStartOffset(), desc.getLength());
+		desc.close();
 	}
 
-	protected void setDataSourceFromNetwork(final MediaPlayer mediaPlayer, final String url) {
-		try {
-			mediaPlayer.setDataSource(url);
-		} catch(IOException exception) {
-			Log.e("RNSoundModule", "Exception in method createMediaPlayerFromNetwork", exception);
-		}
+	protected void setDataSourceFromNetwork(final MediaPlayer mediaPlayer, final String url) throws IOException {
+		mediaPlayer.setDataSource(url);
 	}
 
-	protected void setDataSourceFromFile(final MediaPlayer mediaPlayer, final String fileName) {
+	protected void setDataSourceFromFile(final MediaPlayer mediaPlayer, final String fileName) throws IOException {
 		File file = new File(fileName);
 		if (file.exists()) {
 			Uri uri = Uri.fromFile(file);
-			try {
-				mediaPlayer.setDataSource(this.context, uri);
-			} catch(IOException exception) {
-				Log.e("RNSoundModule", "Exception in method createMediaPlayerFromFile", exception);
-			}
+			mediaPlayer.setDataSource(this.context, uri);
 		}
 	}
 
