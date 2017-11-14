@@ -21,6 +21,7 @@ import com.facebook.react.modules.core.ExceptionsManagerModule;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.io.IOException;
 
 import android.util.Log;
@@ -63,11 +64,10 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		};
 	}
 
-	protected OnPreparedListener createOnPreparedListener(final Callback callback, final Integer key, final RNSoundModule module) {
+	protected OnPreparedListener createOnPreparedListener(final Callback callback) {
 		return new OnPreparedListener() {
 			@Override
 			public synchronized void onPrepared(MediaPlayer mediaPlayer) {
-				module.playerPool.put(key, mediaPlayer);
 				WritableMap props = Arguments.createMap();
 				props.putDouble("duration", mediaPlayer.getDuration() * .001);
 				try {
@@ -102,10 +102,11 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 
 		MediaPlayer mediaPlayer = new MediaPlayer();
 		mediaPlayer.setOnErrorListener(this.createOnErrorListener(callback, false));
-		mediaPlayer.setOnPreparedListener(this.createOnPreparedListener(callback, key, this));
+		mediaPlayer.setOnPreparedListener(this.createOnPreparedListener(callback));
 		mediaPlayer.setAudioStreamType(useAlarmChannel ? AudioManager.STREAM_ALARM : AudioManager.STREAM_MUSIC);
 		
 		this.setMediaPlayerDataSource(mediaPlayer, fileName, callback);
+		this.playerPool.put(key, mediaPlayer);
 		
 		try {
 			Log.i("RNSoundModule", "prepareAsync...");
@@ -308,5 +309,34 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		final Map<String, Object> constants = new HashMap<>();
 		constants.put("IsAndroid", true);
 		return constants;
+	}
+
+	/**
+   * Ensure any audios that are playing when app exits are stopped and released
+   */
+	@Override
+	public void onCatalystInstanceDestroy() {
+		super.onCatalystInstanceDestroy();
+
+		Set<Map.Entry<Integer, MediaPlayer>> entries = playerPool.entrySet();
+		for (Map.Entry<Integer, MediaPlayer> entry : entries) {
+			MediaPlayer mp = entry.getValue();
+			if (mp == null) {
+				continue;
+			}
+			try {
+				mp.setOnCompletionListener(null);
+				mp.setOnPreparedListener(null);
+				mp.setOnErrorListener(null);
+				if (mp.isPlaying()) {
+					mp.stop();
+				}
+				mp.reset();
+				mp.release();
+			} catch (Exception ex) {
+				Log.e("RNSoundModule", "Exception when closing audios during app exit. ", ex);
+			}
+		}
+		entries.clear();
 	}
 }
