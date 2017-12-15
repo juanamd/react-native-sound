@@ -8,6 +8,7 @@ import android.media.MediaPlayer.OnErrorListener;
 import android.media.MediaPlayer.OnPreparedListener;
 import android.net.Uri;
 import android.media.AudioManager;
+import android.os.Build;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
@@ -302,6 +303,17 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	@ReactMethod
 	public void enable(final boolean enabled) {
 		// no op
+	}
+
+	@ReactMethod
+	public void setMute(final boolean isMute) {
+		AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+			if (isMute)	audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+			else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+		} else {
+			audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMute);
+		}
 	}
 
 	@Override
