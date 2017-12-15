@@ -184,6 +184,12 @@ Sound.prototype.setSpeakerphoneOn = function(value) {
   }
 };
 
+Sound.prototype.setMute = function(value) {
+  if (IsAndroid) {
+		RNSound.setMute(value);
+	}
+}
+
 // ios only
 
 // This is deprecated.  Call the static one instead.
