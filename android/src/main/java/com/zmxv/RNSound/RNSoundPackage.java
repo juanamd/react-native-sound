@@ -12,21 +12,22 @@ import com.facebook.react.uimanager.ViewManager;
 
 public class RNSoundPackage implements ReactPackage {
 
-  @Override
-  public List<NativeModule> createNativeModules (ReactApplicationContext context) {
-    List<NativeModule> modules = new ArrayList<>();
-    modules.add(new RNSoundModule(context));
-    return modules;
-  }
+	@Override
+	public List<NativeModule> createNativeModules (ReactApplicationContext context) {
+		List<NativeModule> modules = new ArrayList<>();
+		modules.add(new RNSoundModule(context));
+		return modules;
+	}
 
-  // Deprecated RN 0.47
-  // @Override
-  public List<Class<? extends JavaScriptModule>> createJSModules() {
-    return Collections.emptyList();
-  }
+	// Deprecated RN 0.47
+	// @Override
+	public List<Class<? extends JavaScriptModule>> createJSModules() {
+		return Collections.emptyList();
+	}
 
-  @Override
-  public List<ViewManager> createViewManagers(ReactApplicationContext context) {
-    return Collections.emptyList();
-  }
+	@Override
+	public List<ViewManager> createViewManagers(ReactApplicationContext context) {
+		return Collections.emptyList();
+	}
+	
 }

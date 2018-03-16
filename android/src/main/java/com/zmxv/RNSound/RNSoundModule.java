@@ -2,13 +2,14 @@ package com.zmxv.RNSound;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
 import android.media.MediaPlayer.OnErrorListener;
 import android.media.MediaPlayer.OnPreparedListener;
 import android.net.Uri;
-import android.media.AudioManager;
 import android.os.Build;
+import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
@@ -17,171 +18,159 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.modules.core.ExceptionsManagerModule;
 
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.io.IOException;
-
-import android.util.Log;
 
 public class RNSoundModule extends ReactContextBaseJavaModule {
 
-	final static Object NULL = null;
-
-	Map<Integer, MediaPlayer> playerPool = new HashMap<>();
-	ReactApplicationContext context;
+	private ReactApplicationContext context;
+	private Map<Integer, MediaPlayer> playerPool = new HashMap<>();
 
 	public RNSoundModule(ReactApplicationContext context) {
 		super(context);
 		this.context = context;
 	}
 
-	@Override
-	public String getName() {
-		return "RNSound";
+	@ReactMethod
+	public void load(final String dataSource, final Integer key, final ReadableMap options, final Callback onSuccess, final Callback onError) {
+		MediaPlayer mediaPlayer = new MediaPlayer();
+		this.playerPool.put(key, mediaPlayer);
+
+		mediaPlayer.setOnErrorListener(this.createOnErrorListener(onError));
+		mediaPlayer.setOnPreparedListener(this.createOnPreparedListener(onSuccess));
+		mediaPlayer.setAudioStreamType(this.getAudioStreamTypeFromOptions(options));
+		
+		this.setMediaPlayerDataSource(mediaPlayer, dataSource, onError);
+		this.prepareMediaPlayer(mediaPlayer, onError);		
 	}
 
-	protected OnErrorListener createOnErrorListener(final Callback callback, final boolean isPlayCallback) {
+	private OnErrorListener createOnErrorListener(final Callback callback) {
 		return new OnErrorListener() {
 			@Override
 			public synchronized boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
+				WritableMap errorMap = Arguments.createMap();
+				errorMap.putInt("what", what);
+				errorMap.putInt("extra", extra);
 				try {
-					if (isPlayCallback) callback.invoke(false);
-					else {
-						WritableMap errorMap = Arguments.createMap();
-						errorMap.putInt("what", what);
-						errorMap.putInt("extra", extra);
-						callback.invoke(errorMap, NULL);
-					}
+					callback.invoke(errorMap);
 				} catch(RuntimeException runtimeException) {
-					// The callback was already invoked
-					Log.e("RNSoundModule", "Exception in method onError", runtimeException);
+					Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
 				}
-				return true;
+				return true; //Return true if the error has been handled
 			}
 		};
 	}
 
-	protected OnPreparedListener createOnPreparedListener(final Callback callback) {
+	private OnPreparedListener createOnPreparedListener(final Callback callback) {
 		return new OnPreparedListener() {
 			@Override
 			public synchronized void onPrepared(MediaPlayer mediaPlayer) {
-				WritableMap props = Arguments.createMap();
-				props.putDouble("duration", mediaPlayer.getDuration() * .001);
+				WritableMap response = Arguments.createMap();
+				response.putDouble("duration", mediaPlayer.getDuration() * .001);
 				try {
-					callback.invoke(NULL, props);
+					callback.invoke(response);
 				} catch(RuntimeException runtimeException) {
-					// The callback was already invoked
-					Log.e("RNSoundModule", "Exception in method onPrepared", runtimeException);
+					Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
 				}
 			}
 		};
 	}
 
-	protected OnCompletionListener createOnCompletionListener(final Callback callback) {
-		return new OnCompletionListener() {
-			@Override
-			public synchronized void onCompletion(MediaPlayer mediaPlayer) {
-				if (!mediaPlayer.isLooping()) {
-					try {
-						callback.invoke(true);
-					} catch (RuntimeException runtimeException) {
-						// The callback was already invoked
-						Log.e("RNSoundModule", "Exception in method onResourceNotFound", runtimeException);
-					}
-				}
-			}
-		};
+	private int getAudioStreamTypeFromOptions(final ReadableMap options) {
+		boolean useAlarmChannel = options.hasKey("useAlarmChannel") ? options.getBoolean("useAlarmChannel") : false;
+		if (useAlarmChannel) return AudioManager.STREAM_ALARM;
+		return AudioManager.STREAM_MUSIC;
 	}
 
-	@ReactMethod
-	public void prepare(final String fileName, final Integer key, final ReadableMap options, final Callback callback) {
-		boolean useAlarmChannel = (options != null && options.hasKey("useAlarmChannel")) ? options.getBoolean("useAlarmChannel") : false;
-
-		MediaPlayer mediaPlayer = new MediaPlayer();
-		mediaPlayer.setOnErrorListener(this.createOnErrorListener(callback, false));
-		mediaPlayer.setOnPreparedListener(this.createOnPreparedListener(callback));
-		mediaPlayer.setAudioStreamType(useAlarmChannel ? AudioManager.STREAM_ALARM : AudioManager.STREAM_MUSIC);
-		
-		this.setMediaPlayerDataSource(mediaPlayer, fileName, callback);
-		this.playerPool.put(key, mediaPlayer);
-		
+	private void setMediaPlayerDataSource(final MediaPlayer mediaPlayer, final String dataSource, final Callback onError) {
 		try {
-			Log.i("RNSoundModule", "prepareAsync...");
-			mediaPlayer.prepareAsync();
-		} catch(IllegalStateException illegalStateException) {
-			Log.e("RNSoundModule", "IllegalStateException in method prepare", illegalStateException);
-			this.onResourceNotFound(callback);
-		} catch(Exception exception) {
-			Log.e("RNSoundModule", "Exception in method prepare", exception);
-			this.onResourceNotFound(callback);
-		}
-	}
-
-	protected void onResourceNotFound(final Callback callback) {
-		WritableMap err = Arguments.createMap();
-		err.putInt("code", -1);
-		err.putString("message", "resource not found");
-		try {
-			callback.invoke(err, NULL);
-		} catch(RuntimeException runtimeException) {
-			// The callback was already invoked
-			Log.e("RNSoundModule", "Exception in method onResourceNotFound", runtimeException);
-		}
-	}
-
-	protected void setMediaPlayerDataSource(final MediaPlayer mediaPlayer, final String fileName, final Callback callback) {
-		int res = this.context.getResources().getIdentifier(fileName, "raw", this.context.getPackageName());
-
-		try {
-			if (res != 0) this.setDataSourceFromUri(mediaPlayer, fileName);
-			else if (fileName.startsWith("asset:/")) this.setDataSourceFromAsset(mediaPlayer, fileName);
-			else if (fileName.startsWith("http://") || fileName.startsWith("https://")) this.setDataSourceFromNetwork(mediaPlayer, fileName);
-			else this.setDataSourceFromFile(mediaPlayer, fileName);
-		} catch(IOException ioException) {
-			Log.e("RNSoundModule", "IOException in method setMediaPlayerDataSource", ioException);
-			this.onResourceNotFound(callback);
+			if (this.isBundledResource(dataSource)) this.setDataSourceFromUri(mediaPlayer, dataSource);
+			else if (dataSource.startsWith("asset:/")) this.setDataSourceFromAsset(mediaPlayer, dataSource);
+			else if (dataSource.matches("^(https?)://.*$")) this.setDataSourceFromNetwork(mediaPlayer, dataSource);
+			else this.setDataSourceFromFile(mediaPlayer, dataSource);
 		} catch(Exception exception) {
 			Log.e("RNSoundModule", "Exception in method setMediaPlayerDataSource", exception);
-			this.onResourceNotFound(callback);
+			this.onException(exception, onError);
 		}
 	}
 
-	protected void setDataSourceFromUri(final MediaPlayer mediaPlayer, final String fileName) throws IOException {
+	private boolean isBundledResource(final String fileName) {
+		int resId = this.context.getResources().getIdentifier(fileName, "raw", this.context.getPackageName());
+		return resId != 0;
+	}
+
+	private void setDataSourceFromUri(final MediaPlayer mediaPlayer, final String fileName) throws Exception {
 		Uri uri = Uri.parse("android.resource://" + this.context.getPackageName() + "/raw/" + fileName);
 		mediaPlayer.setDataSource(this.context, uri);
 	}
 
-	protected void setDataSourceFromAsset(final MediaPlayer mediaPlayer, final String fileName) throws IOException {
+	private void setDataSourceFromAsset(final MediaPlayer mediaPlayer, final String fileName) throws Exception {
 		AssetFileDescriptor desc = this.context.getAssets().openFd(fileName.replace("asset:/", ""));
 		mediaPlayer.setDataSource(desc.getFileDescriptor(), desc.getStartOffset(), desc.getLength());
 		desc.close();
 	}
 
-	protected void setDataSourceFromNetwork(final MediaPlayer mediaPlayer, final String url) throws IOException {
+	private void setDataSourceFromNetwork(final MediaPlayer mediaPlayer, final String url) throws Exception {
 		mediaPlayer.setDataSource(url);
 	}
 
-	protected void setDataSourceFromFile(final MediaPlayer mediaPlayer, final String fileName) throws IOException {
+	private void setDataSourceFromFile(final MediaPlayer mediaPlayer, final String fileName) throws Exception {
 		File file = new File(fileName);
 		if (file.exists()) {
 			Uri uri = Uri.fromFile(file);
 			mediaPlayer.setDataSource(this.context, uri);
+		} else {
+			throw new Exception("File does not exist");
+		}
+	}
+
+	private void onException(Exception exception, final Callback callback) {
+		WritableMap errorMap = Arguments.createMap();
+		errorMap.putString("message", exception.getMessage());
+		errorMap.putString("description", exception.toString());
+		try {
+			callback.invoke(errorMap);
+		} catch(RuntimeException runtimeException) {
+			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+		}
+	}
+
+	private void prepareMediaPlayer(final MediaPlayer mediaPlayer, final Callback onError) {
+		try {
+			Log.i("RNSoundModule", "prepareAsync...");
+			mediaPlayer.prepareAsync();
+		} catch(Exception exception) {
+			Log.e("RNSoundModule", "Exception in method prepareMediaPlayer", exception);
+			this.onException(exception, onError);
 		}
 	}
 
 	@ReactMethod
-	public void play(final Integer key, final Callback callback) {
+	public void play(final Integer key, final Callback onComplete) {
 		MediaPlayer player = this.playerPool.get(key);
-		if (player == null) callback.invoke(false);
+		if (player == null) onComplete.invoke(false);
 		else if (!player.isPlaying()) {
-			player.setOnErrorListener(this.createOnErrorListener(callback, true));
-			player.setOnCompletionListener(this.createOnCompletionListener(callback));
+			player.setOnCompletionListener(this.createOnCompletionListener(onComplete));
 			player.start();
 		}
+	}
+
+	private OnCompletionListener createOnCompletionListener(final Callback callback) {
+		return new OnCompletionListener() {
+			@Override
+			public synchronized void onCompletion(MediaPlayer mediaPlayer) {
+				if (!mediaPlayer.isLooping()) {
+					try {
+						callback.invoke();
+					} catch (RuntimeException runtimeException) {
+						Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+					}
+				}
+			}
+		};
 	}
 
 	@ReactMethod
@@ -191,8 +180,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		try {
 			callback.invoke();
 		} catch(RuntimeException runtimeException) {
-			// The callback was already invoked
-			Log.e("RNSoundModule", "Exception in method pause", runtimeException);
+			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
 		}
 	}
 
@@ -206,8 +194,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		try {
 			callback.invoke();
 		} catch(RuntimeException runtimeException) {
-			// The callback was already invoked
-			Log.e("RNSoundModule", "Exception in method stop", runtimeException);
+			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
 		}
 	}
 
@@ -221,6 +208,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	public void release(final Integer key) {
 		MediaPlayer player = this.playerPool.get(key);
 		if (player != null) {
+			player.setOnCompletionListener(null);
+			player.setOnPreparedListener(null);
+			player.setOnErrorListener(null);
 			player.release();
 			this.playerPool.remove(key);
 		}
@@ -235,25 +225,26 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	@ReactMethod
 	public void getSystemVolume(final Callback callback) {
 		try {
-			AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-			float volume = (float)audio.getStreamVolume(AudioManager.STREAM_MUSIC) / audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-			callback.invoke(NULL, volume);
-		} catch (Exception error) {
+			AudioManager audio = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
+			int streamVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+			int streamMaxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+			float volume = (float) streamVolume / streamMaxVolume;
+			callback.invoke(null, volume);
+		} catch (Exception exception) {
 			WritableMap errorMap = Arguments.createMap();
-			errorMap.putInt("code", -1);
-			errorMap.putString("message", error.getMessage());
+			errorMap.putString("message", exception.getMessage());
+			errorMap.putString("description", exception.toString());
 			try {
-				callback.invoke(errorMap, NULL);
+				callback.invoke(errorMap, null);
 			} catch(RuntimeException runtimeException) {
-				// The callback was already invoked
-				Log.e("RNSoundModule", "Exception in method getSystemVolume", runtimeException);
+				Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
 			}
 		}
 	}
 
 	@ReactMethod
 	public void setSystemVolume(final Float value) {
-		AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+		AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 		int volume = Math.round(audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) * value);
 		audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, 0);
 	}
@@ -273,7 +264,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	@ReactMethod
 	public void setCurrentTime(final Integer key, final Float sec) {
 		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) player.seekTo((int)Math.round(sec * 1000));
+		if (player != null) player.seekTo((int) Math.round(sec * 1000));
 	}
 
 	@ReactMethod
@@ -283,37 +274,35 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 			if (player == null) callback.invoke(-1, false);
 			else callback.invoke(player.getCurrentPosition() * .001, player.isPlaying());
 		} catch(RuntimeException runtimeException) {
-			// The callback was already invoked
-			Log.e("RNSoundModule", "Exception in method getCurrentTime", runtimeException);
+			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
 		}
 	}
 
-	//turn speaker on
 	@ReactMethod
 	public void setSpeakerphoneOn(final Integer key, final boolean speaker) {
 		MediaPlayer player = this.playerPool.get(key);
 		if (player != null) {
 			player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-			AudioManager audioManager = (AudioManager)this.context.getSystemService(this.context.AUDIO_SERVICE);
+			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 			audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
 			audioManager.setSpeakerphoneOn(speaker);
 		}
 	}
 
 	@ReactMethod
-	public void enable(final boolean enabled) {
-		// no op
-	}
-
-	@ReactMethod
 	public void setMute(final boolean isMute) {
-		AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+		AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			if (isMute)	audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
 			else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
 		} else {
 			audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMute);
 		}
+	}
+
+	@Override
+	public String getName() {
+		return "RNSound";
 	}
 
 	@Override
@@ -324,31 +313,28 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	/**
-   * Ensure any audios that are playing when app exits are stopped and released
-   */
+	* Ensure any audios that are playing when app exits are stopped and released
+	*/
 	@Override
 	public void onCatalystInstanceDestroy() {
 		super.onCatalystInstanceDestroy();
 
 		Set<Map.Entry<Integer, MediaPlayer>> entries = playerPool.entrySet();
 		for (Map.Entry<Integer, MediaPlayer> entry : entries) {
-			MediaPlayer mp = entry.getValue();
-			if (mp == null) {
-				continue;
-			}
+			MediaPlayer player = entry.getValue();
+			if (player == null) continue;
 			try {
-				mp.setOnCompletionListener(null);
-				mp.setOnPreparedListener(null);
-				mp.setOnErrorListener(null);
-				if (mp.isPlaying()) {
-					mp.stop();
-				}
-				mp.reset();
-				mp.release();
-			} catch (Exception ex) {
-				Log.e("RNSoundModule", "Exception when closing audios during app exit. ", ex);
+				player.setOnCompletionListener(null);
+				player.setOnPreparedListener(null);
+				player.setOnErrorListener(null);
+				if (player.isPlaying()) player.stop();
+				player.reset();
+				player.release();
+			} catch (Exception exception) {
+				Log.e("RNSoundModule", "Exception when closing audios during app exit. ", exception);
 			}
 		}
 		entries.clear();
 	}
+
 }
