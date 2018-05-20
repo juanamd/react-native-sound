@@ -114,7 +114,8 @@ class Sound {
 	}
 
 	release() {
-		if (this.isLoaded) RNSound.release(this.key);
+		if (this.isLoading || this.isLoaded) RNSound.release(this.key);
+		this.isLoading = false;
 		this.isLoaded = false;
 		return this;
 	}
