@@ -24,12 +24,14 @@ const parseDataSource = (fileName, path) => {
 let keyCounter = 0;
 
 class Sound {
-	static getSystemVolume(callback) {
-		if (IS_ANDROID) RNSound.getSystemVolume(callback);
+	static getSystemVolume(callback, options = {}) {
+		if (IS_ANDROID) RNSound.getSystemVolume(callback, options);
 	}
 	
-	static setSystemVolume(value) {
-		if (IS_ANDROID) RNSound.setSystemVolume(value);
+	static setSystemVolume(value, options = {}) {
+		if (value < 0) value = 0;
+		else if (value > 1) value = 1;
+		if (IS_ANDROID) RNSound.setSystemVolume(value, options);
 	}
 
 	static setSystemMute(value) {

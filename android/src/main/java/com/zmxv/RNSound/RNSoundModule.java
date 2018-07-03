@@ -223,11 +223,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	@ReactMethod
-	public void getSystemVolume(final Callback callback) {
+	public void getSystemVolume(final Callback callback, final ReadableMap options) {
 		try {
 			AudioManager audio = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
-			int streamVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC);
-			int streamMaxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+			int channel = this.getAudioStreamTypeFromOptions(options);
+			int streamVolume = audio.getStreamVolume(channel);
+			int streamMaxVolume = audio.getStreamMaxVolume(channel);
 			float volume = (float) streamVolume / streamMaxVolume;
 			callback.invoke(null, volume);
 		} catch (Exception exception) {
@@ -243,10 +244,15 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	@ReactMethod
-	public void setSystemVolume(final Float value) {
-		AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
-		int volume = Math.round(audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) * value);
-		audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, volume, 0);
+	public void setSystemVolume(final Float value, final ReadableMap options) {
+		try {
+			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
+			int channel = this.getAudioStreamTypeFromOptions(options);
+			int volume = Math.round(audioManager.getStreamMaxVolume(channel) * value);
+			audioManager.setStreamVolume(channel, volume, 0);
+		} catch (Exception exception) {
+			Log.e("RNSoundModule", "Exception in setSystemVolume", exception);
+		}
 	}
 
 	@ReactMethod
