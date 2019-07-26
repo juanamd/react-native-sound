@@ -2,6 +2,7 @@ package com.zmxv.RNSound;
 
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
@@ -13,6 +14,7 @@ import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -26,57 +28,94 @@ import java.util.Set;
 
 public class RNSoundModule extends ReactContextBaseJavaModule {
 
+	private static final String TAG = "RNSoundModule";
+
 	private ReactApplicationContext context;
 	private Map<Integer, MediaPlayer> playerPool = new HashMap<>();
+	private Map<Integer, Callback> errorCallbackPool = new HashMap<>();
 
 	public RNSoundModule(ReactApplicationContext context) {
 		super(context);
 		this.context = context;
+		Log.d(TAG, "Initialized");
 	}
 
 	@ReactMethod
-	public void load(final String dataSource, final Integer key, final ReadableMap options, final Callback onSuccess, final Callback onError) {
-		MediaPlayer mediaPlayer = new MediaPlayer();
-		this.playerPool.put(key, mediaPlayer);
-
-		mediaPlayer.setOnErrorListener(this.createOnErrorListener(onError));
-		mediaPlayer.setOnPreparedListener(this.createOnPreparedListener(onSuccess));
-		mediaPlayer.setAudioStreamType(this.getAudioStreamTypeFromOptions(options));
-		
-		this.setMediaPlayerDataSource(mediaPlayer, dataSource, onError);
-		this.prepareMediaPlayer(mediaPlayer, onError);		
+	public void setErrorCallback(final Integer key, final Callback onError) {
+		try {
+			this.errorCallbackPool.put(key, onError);
+			Log.d(TAG, key + " - Added error callback");
+		} catch (Exception e) {
+			Log.e(TAG,  key + " - Error on setErrorCallback()", e);
+		}
 	}
 
-	private OnErrorListener createOnErrorListener(final Callback callback) {
+	@ReactMethod
+	public void load(final Integer key, final String dataSource, final ReadableMap options, final Promise promise) {
+		Log.d(TAG, key + " - Loading " + dataSource + " ...");
+		try {
+			MediaPlayer player = new MediaPlayer();
+			this.playerPool.put(key, player);
+			player.setOnErrorListener(this.createOnErrorListener(key));
+			player.setOnPreparedListener(this.createOnPreparedListener(key, promise));
+			this.applyAudioOptions(player, options);
+			this.setMediaPlayerDataSource(player, dataSource);
+			player.prepareAsync();
+			Log.d(TAG, key + " - Load complete. Waiting for onPrepared...");
+		} catch (Exception e) {
+			Log.e(TAG,  key + " - Error on load()", e);
+			promise.reject(e);
+		}
+	}
+
+	private OnErrorListener createOnErrorListener(final Integer key) {
 		return new OnErrorListener() {
 			@Override
 			public synchronized boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
+				Log.e(TAG, key + " - Error. What: " + what + " extra: " + extra);
 				WritableMap errorMap = Arguments.createMap();
 				errorMap.putInt("what", what);
 				errorMap.putInt("extra", extra);
 				try {
-					callback.invoke(errorMap);
-				} catch(RuntimeException runtimeException) {
-					Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+					Callback onError = errorCallbackPool.get(key);
+					if (onError != null) onError.invoke(errorMap);
+					else Log.e(TAG, "OnErrorListener(): no on errror callback found for key " + key);
+				} catch (Exception e) {
+					Log.e(TAG, "OnErrorListener(): onError callback already dispatched!", e);
 				}
 				return true; //Return true if the error has been handled
 			}
 		};
 	}
 
-	private OnPreparedListener createOnPreparedListener(final Callback callback) {
+	private OnPreparedListener createOnPreparedListener(final Integer key, final Promise promise) {
 		return new OnPreparedListener() {
 			@Override
 			public synchronized void onPrepared(MediaPlayer mediaPlayer) {
-				WritableMap response = Arguments.createMap();
-				response.putDouble("duration", mediaPlayer.getDuration() * .001);
 				try {
-					callback.invoke(response);
-				} catch(RuntimeException runtimeException) {
-					Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+					WritableMap map = Arguments.createMap();
+					map.putInt("duration", mediaPlayer.getDuration());
+					promise.resolve(map);
+					Log.d(TAG, key + " - Prepared completed!");
+				} catch (Exception e) {
+					Log.e(TAG, key + " - Error on OnPreparedListener()", e);
+					promise.reject(e);
 				}
 			}
 		};
+	}
+
+	private void applyAudioOptions(final MediaPlayer mediaPlayer, final ReadableMap options) {
+		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+			mediaPlayer.setAudioStreamType(this.getAudioStreamTypeFromOptions(options));
+		} else {
+			boolean useAlarmChannel = options.hasKey("useAlarmChannel") ? options.getBoolean("useAlarmChannel") : false;
+			AudioAttributes audioAttributes = new AudioAttributes.Builder()
+				.setUsage(useAlarmChannel ? AudioAttributes.USAGE_ALARM : AudioAttributes.USAGE_MEDIA)
+				.setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+				.build();
+			mediaPlayer.setAudioAttributes(audioAttributes);
+		}
 	}
 
 	private int getAudioStreamTypeFromOptions(final ReadableMap options) {
@@ -85,16 +124,11 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		return AudioManager.STREAM_MUSIC;
 	}
 
-	private void setMediaPlayerDataSource(final MediaPlayer mediaPlayer, final String dataSource, final Callback onError) {
-		try {
-			if (this.isBundledResource(dataSource)) this.setDataSourceFromUri(mediaPlayer, dataSource);
-			else if (dataSource.startsWith("asset:/")) this.setDataSourceFromAsset(mediaPlayer, dataSource);
-			else if (dataSource.matches("^(https?)://.*$")) this.setDataSourceFromNetwork(mediaPlayer, dataSource);
-			else this.setDataSourceFromFile(mediaPlayer, dataSource);
-		} catch(Exception exception) {
-			Log.e("RNSoundModule", "Exception in method setMediaPlayerDataSource", exception);
-			this.onException(exception, onError);
-		}
+	private void setMediaPlayerDataSource(final MediaPlayer mediaPlayer, final String dataSource) throws Exception {
+		if (this.isBundledResource(dataSource)) this.setDataSourceFromUri(mediaPlayer, dataSource);
+		else if (dataSource.startsWith("asset:/")) this.setDataSourceFromAsset(mediaPlayer, dataSource);
+		else if (dataSource.matches("^(https?)://.*$")) this.setDataSourceFromNetwork(mediaPlayer, dataSource);
+		else this.setDataSourceFromFile(mediaPlayer, dataSource);
 	}
 
 	private boolean isBundledResource(final String fileName) {
@@ -123,50 +157,33 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 			Uri uri = Uri.fromFile(file);
 			mediaPlayer.setDataSource(this.context, uri);
 		} else {
-			throw new Exception("File does not exist");
-		}
-	}
-
-	private void onException(Exception exception, final Callback callback) {
-		WritableMap errorMap = Arguments.createMap();
-		errorMap.putString("message", exception.getMessage());
-		errorMap.putString("description", exception.toString());
-		try {
-			callback.invoke(errorMap);
-		} catch(RuntimeException runtimeException) {
-			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
-		}
-	}
-
-	private void prepareMediaPlayer(final MediaPlayer mediaPlayer, final Callback onError) {
-		try {
-			Log.i("RNSoundModule", "prepareAsync...");
-			mediaPlayer.prepareAsync();
-		} catch(Exception exception) {
-			Log.e("RNSoundModule", "Exception in method prepareMediaPlayer", exception);
-			this.onException(exception, onError);
+			throw new Exception("File does not exist with name: " + fileName);
 		}
 	}
 
 	@ReactMethod
-	public void play(final Integer key, final Callback onComplete) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player == null) onComplete.invoke(false);
-		else if (!player.isPlaying()) {
-			player.setOnCompletionListener(this.createOnCompletionListener(onComplete));
-			player.start();
+	public void setOnCompletionListener(final Integer key, final Callback onComplete) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null && !player.isPlaying()) {
+				player.setOnCompletionListener(this.createOnCompletionListener(key, onComplete));
+			}
+			Log.d(TAG, key + " - Set OnCompletion listener");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setOnCompletionListener()", e);
 		}
 	}
 
-	private OnCompletionListener createOnCompletionListener(final Callback callback) {
+	private OnCompletionListener createOnCompletionListener(final Integer key, final Callback callback) {
 		return new OnCompletionListener() {
 			@Override
 			public synchronized void onCompletion(MediaPlayer mediaPlayer) {
 				if (!mediaPlayer.isLooping()) {
 					try {
 						callback.invoke();
-					} catch (RuntimeException runtimeException) {
-						Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+						Log.d(TAG, key + " - Playing complete!");
+					} catch (Exception e) {
+						Log.e(TAG, "The on completion callback was already invoked", e);
 					}
 				}
 			}
@@ -174,135 +191,215 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	@ReactMethod
-	public void pause(final Integer key, final Callback callback) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null && player.isPlaying()) player.pause();
+	public void play(final Integer key, final Promise promise) {
 		try {
-			callback.invoke();
-		} catch(RuntimeException runtimeException) {
-			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+			MediaPlayer player = this.playerPool.get(key);
+			if (player == null) {
+				promise.reject(new Exception("Undefined player"));
+				return;
+			} else if (!player.isPlaying()) {
+				player.start();
+			}
+			promise.resolve(null);
+			Log.d(TAG, key + " - Started playing...");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on play()", e);
+			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void stop(final Integer key, final Callback callback) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null && player.isPlaying()) {
-			player.pause();
-			player.seekTo(0);
-		}
+	public void pause(final Integer key, final Promise promise) {
 		try {
-			callback.invoke();
-		} catch(RuntimeException runtimeException) {
-			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null && player.isPlaying()) player.pause();
+			promise.resolve(null);
+			Log.d(TAG, key + " - Paused");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on pause()", e);
+			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void reset(final Integer key) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) player.reset();
-	}
-
-	@ReactMethod
-	public void release(final Integer key) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) {
-			player.setOnCompletionListener(null);
-			player.setOnPreparedListener(null);
-			player.setOnErrorListener(null);
-			player.release();
-			this.playerPool.remove(key);
+	public void stop(final Integer key, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null && player.isPlaying()) {
+				player.pause();
+				player.seekTo(0);
+			}
+			Log.d(TAG, key + " - Stopped");
+			promise.resolve(null);
+		} catch (Exception e) {
+			Log.e(TAG, "Error on stop()", e);
+			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void setVolume(final Integer key, final Float left, final Float right) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) player.setVolume(left, right);
+	public void reset(final Integer key, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) player.reset();
+			promise.resolve(null);
+			Log.d(TAG, key + " - Resetted");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on reset()", e);
+			promise.reject(e);
+		}
 	}
 
 	@ReactMethod
-	public void getSystemVolume(final Callback callback, final ReadableMap options) {
+	public void release(final Integer key, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) {
+				player.setOnCompletionListener(null);
+				player.setOnPreparedListener(null);
+				player.setOnErrorListener(null);
+				player.release();
+				this.playerPool.remove(key);
+			}
+			promise.resolve(null);
+			Log.d(TAG, key + " - Released!");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on release()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void setVolume(final Integer key, final Float left, final Float right, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) player.setVolume(left, right);
+			promise.resolve(null);
+			Log.d(TAG, key + " - Set volume - Left: " + left.toString() + ", Right: " + right.toString());
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setVolume()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void getSystemVolume(final ReadableMap options, final Promise promise) {
 		try {
 			AudioManager audio = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 			int channel = this.getAudioStreamTypeFromOptions(options);
 			int streamVolume = audio.getStreamVolume(channel);
 			int streamMaxVolume = audio.getStreamMaxVolume(channel);
 			float volume = (float) streamVolume / streamMaxVolume;
-			callback.invoke(null, volume);
-		} catch (Exception exception) {
-			WritableMap errorMap = Arguments.createMap();
-			errorMap.putString("message", exception.getMessage());
-			errorMap.putString("description", exception.toString());
-			try {
-				callback.invoke(errorMap, null);
-			} catch(RuntimeException runtimeException) {
-				Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
-			}
+			promise.resolve(volume);
+			Log.d(TAG, "Get system volume");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on getSystemVolume()", e);
+			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void setSystemVolume(final Float value, final ReadableMap options) {
+	public void setSystemVolume(final Float value, final ReadableMap options, final Promise promise) {
 		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 			int channel = this.getAudioStreamTypeFromOptions(options);
 			int volume = Math.round(audioManager.getStreamMaxVolume(channel) * value);
 			audioManager.setStreamVolume(channel, volume, 0);
-		} catch (Exception exception) {
-			Log.e("RNSoundModule", "Exception in setSystemVolume", exception);
+			promise.resolve(null);
+			Log.d(TAG, "Set system volume to: " + volume);
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setSystemVolume()", e);
+			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void setLooping(final Integer key, final boolean looping) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) player.setLooping(looping);
-	}
-
-	@ReactMethod
-	public void setSpeed(final Integer key, final Float speed) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) player.setPlaybackParams(player.getPlaybackParams().setSpeed(speed));
-	}
-
-	@ReactMethod
-	public void setCurrentTime(final Integer key, final Float sec) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) player.seekTo((int) Math.round(sec * 1000));
-	}
-
-	@ReactMethod
-	public void getCurrentTime(final Integer key, final Callback callback) {
-		MediaPlayer player = this.playerPool.get(key);
+	public void setLooping(final Integer key, final boolean looping, final Promise promise) {
 		try {
-			if (player == null) callback.invoke(-1, false);
-			else callback.invoke(player.getCurrentPosition() * .001, player.isPlaying());
-		} catch(RuntimeException runtimeException) {
-			Log.e("RNSoundModule", "The callback was already invoked", runtimeException);
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) player.setLooping(looping);
+			promise.resolve(null);
+			Log.d(TAG, key + " - Set looping to " + looping);
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setLooping()", e);
+			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void setSpeakerphoneOn(final Integer key, final boolean speaker) {
-		MediaPlayer player = this.playerPool.get(key);
-		if (player != null) {
-			player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+	public void setSpeed(final Integer key, final Float speed, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) player.setPlaybackParams(player.getPlaybackParams().setSpeed(speed));
+			promise.resolve(null);
+			Log.d(TAG, key + " - Set speed to " + speed.toString());
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setSpeed()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void setCurrentTime(final Integer key, final Float sec, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) player.seekTo((int) Math.round(sec * 1000));
+			promise.resolve(null);
+			Log.d(TAG, key + " - Set current time to: " + sec.toString());
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setCurrentTime()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void getCurrentTime(final Integer key, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			WritableMap map = Arguments.createMap();
+			map.putInt("time", player != null ? player.getCurrentPosition() : -1);
+			map.putBoolean("isPlaying", player != null ? player.isPlaying() : false);
+			promise.resolve(map);
+			Log.d(TAG, key + " - Get current time");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on getCurrentTime()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void setSpeakerphoneOn(final Integer key, final boolean speaker, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			if (player != null) {
+				player.setAudioStreamType(AudioManager.STREAM_MUSIC);
+				AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
+				audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+				audioManager.setSpeakerphoneOn(speaker);
+				Log.d(TAG, key + " - Set speakerphone to: " + speaker);
+			}
+			promise.resolve(null);
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setSpeakerphoneOn()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void setMute(final boolean isMute, final Promise promise) {
+		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
-			audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-			audioManager.setSpeakerphoneOn(speaker);
-		}
-	}
-
-	@ReactMethod
-	public void setMute(final boolean isMute) {
-		AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			if (isMute)	audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
-			else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
-		} else {
-			audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMute);
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				if (isMute)	audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+				else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+			} else {
+				audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMute);
+			}
+			Log.d(TAG, "Set mute to: " + isMute);
+			promise.resolve(null);
+		} catch (Exception e) {
+			Log.e(TAG, "Error on setMute()", e);
+			promise.reject(e);
 		}
 	}
 
@@ -337,7 +434,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 				player.reset();
 				player.release();
 			} catch (Exception exception) {
-				Log.e("RNSoundModule", "Exception when closing audios during app exit. ", exception);
+				Log.e(TAG, "Exception when closing audios during app exit. ", exception);
 			}
 		}
 		entries.clear();

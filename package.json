@@ -1,8 +1,12 @@
 {
   "name": "react-native-sound",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "React Native module for playing sound clips on iOS, Android, and Windows",
-  "main": "sound.js",
+  "main": "lib/sound.js",
+  "scripts": {
+    "build": "babel src -d lib/ && flow-copy-source src lib",
+    "prepublish": "yarn run build"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zmxv/react-native-sound.git"
@@ -17,5 +21,15 @@
   "license": "MIT",
   "peerDependencies": {
     "react-native": ">=0.8.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.5.5",
+    "@babel/core": "^7.5.5",
+    "@babel/preset-flow": "^7.0.0",
+    "babel-eslint": "^10.0.2",
+    "eslint": "^6.1.0",
+    "eslint-plugin-flowtype": "^3.12.1",
+    "flow-bin": "^0.103.0",
+    "flow-copy-source": "^2.0.7"
   }
 }
