@@ -8,9 +8,9 @@ const RNSound = NativeModules.RNSound;
 const IS_ANDROID = RNSound.IsAndroid;
 const IS_WINDOWS = RNSound.IsWindows;
 
-const isRelativePath = (path: string) => !/^(\/|http(s?)|asset)/.test(path);
+const isAbsolutePath = (path: string) => /^(\/|http(s?)|asset)/.test(path);
 
-const isBundledFile = (fileName: string) => IS_ANDROID && isRelativePath(fileName);
+const isBundledFile = (fileName: string) => IS_ANDROID && !isAbsolutePath(fileName);
 
 const parseBundledFileName = (fileName: string) => fileName.toLowerCase().replace(/\.[^.]+$/, "");
 
@@ -158,16 +158,22 @@ class Sound {
 		if (!IS_WINDOWS && this.isLoaded) await RNSound.setSpeed(this.key, value);
 	}
 
-	async getCurrentTime() {
-		if (this.isLoaded) return await RNSound.getCurrentTime(this.key);
+	async getCurrentMillis(): number | Promise<number> {
+		if (this.isLoaded) return await RNSound.getCurrentMillis(this.key);
+		return -1;
 	}
 	
-	async setCurrentTime(value: number) {
-		if (this.isLoaded) await RNSound.setCurrentTime(this.key, value);
+	async setCurrentMillis(ms: number) {
+		if (this.isLoaded) await RNSound.setCurrentMillis(this.key, ms);
 	}
 
 	async setSpeakerphoneOn(value: boolean) {
 		if (IS_ANDROID) await RNSound.setSpeakerphoneOn(this.key, value);
+	}
+
+	async isPlaying(): boolean | Promise<boolean> {
+		if (this.isLoaded) return await RNSound.isPlaying(this.key);
+		return false;
 	}
 }
 

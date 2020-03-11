@@ -340,29 +340,40 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	@ReactMethod
-	public void setCurrentTime(final Integer key, final Float sec, final Promise promise) {
+	public void setCurrentMillis(final Integer key, final int ms, final Promise promise) {
 		try {
 			MediaPlayer player = this.playerPool.get(key);
-			if (player != null) player.seekTo((int) Math.round(sec * 1000));
+			if (player != null) player.seekTo(ms);
 			promise.resolve(null);
-			Log.d(TAG, key + " - Set current time to: " + sec.toString());
+			Log.d(TAG, key + " - Set current millis to: " + Integer.toString(ms));
 		} catch (Exception e) {
-			Log.e(TAG, "Error on setCurrentTime()", e);
+			Log.e(TAG, "Error on setCurrentMillis()", e);
 			promise.reject(e);
 		}
 	}
 
 	@ReactMethod
-	public void getCurrentTime(final Integer key, final Promise promise) {
+	public void getCurrentMillis(final Integer key, final Promise promise) {
 		try {
 			MediaPlayer player = this.playerPool.get(key);
-			WritableMap map = Arguments.createMap();
-			map.putInt("time", player != null ? player.getCurrentPosition() : -1);
-			map.putBoolean("isPlaying", player != null ? player.isPlaying() : false);
-			promise.resolve(map);
-			Log.d(TAG, key + " - Get current time");
+			int ms = player != null ? player.getCurrentPosition() : -1;
+			promise.resolve(ms);
+			Log.d(TAG, key + " - Get current millis");
 		} catch (Exception e) {
-			Log.e(TAG, "Error on getCurrentTime()", e);
+			Log.e(TAG, "Error on getCurrentMillis()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void isPlaying(final Integer key, final Promise promise) {
+		try {
+			MediaPlayer player = this.playerPool.get(key);
+			boolean isPlaying = player != null ? player.isPlaying() : false;
+			promise.resolve(isPlaying);
+			Log.d(TAG, key + " - isPlaying");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on isPlaying()", e);
 			promise.reject(e);
 		}
 	}
