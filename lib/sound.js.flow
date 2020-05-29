@@ -25,16 +25,43 @@ const parseDataSource = (fileName: string, path?: string) => {
 let keyCounter = 0;
 
 type Status = "unloaded" | "loading" | "loaded";
+type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
+type FocusLoss = "loss" | "lossTransient" | "lossTransientMayDuck";
+
+type Options = {
+	useAlarmChannel?: boolean,
+};
+
+type FocusOptions = {
+	useAlarmChannel?: boolean,
+	audioFocusType?: FocusGain,
+};
 
 class Sound {
-	static async getSystemVolume(options: mixed = {}) {
+	static async getSystemVolume(options: Options = {}) {
 		if (IS_ANDROID) return await RNSound.getSystemVolume(options);
 	}
 	
-	static async setSystemVolume(value: number, options: mixed = {}) {
+	static async setSystemVolume(value: number, options: Options = {}) {
 		if (value < 0) value = 0;
 		else if (value > 1) value = 1;
 		if (IS_ANDROID) await RNSound.setSystemVolume(value, options);
+	}
+
+	static async setVolumeControlStream(options: Options) {
+		if (IS_ANDROID) await RNSound.setVolumeControlStream(options);
+	}
+
+	static async requestAudioFocus(options: FocusOptions): Promise<void | "granted" | "delayed" | "failed"> {
+		if (IS_ANDROID) return await RNSound.requestAudioFocus(options);
+	}
+
+	static async setAudioFocusListener(onFocus: (focusType: "gain" | FocusLoss) => any) {
+		if (IS_ANDROID) await RNSound.setAudioFocusListener(onFocus);
+	}
+
+	static async abandonAudioFocus() {
+		if (IS_ANDROID) await RNSound.abandonAudioFocus();
 	}
 
 	static async setSystemMute(value: boolean) {
@@ -93,7 +120,7 @@ class Sound {
 		if (IS_ANDROID) RNSound.setErrorCallback(this.key, errorData => onError(new PlaybackError(errorData)));
 	}
 
-	async load(fileName: string, path?: string, options: mixed = {}) {
+	async load(fileName: string, path?: string, options: Options = {}) {
 		if (this.status !== "unloaded") return false;
 		this._initialize();
 		this.status = "loading";
