@@ -48,8 +48,12 @@ class Sound {
 		if (IS_ANDROID) await RNSound.setSystemVolume(value, options);
 	}
 
-	static async setVolumeControlStream(options: Options) {
+	static async setVolumeControlStream(options: Options = {}) {
 		if (IS_ANDROID) await RNSound.setVolumeControlStream(options);
+	}
+
+	static async resetVolumeControlStream() {
+		if (IS_ANDROID) await RNSound.resetVolumeControlStream();
 	}
 
 	static async requestAudioFocus(options: FocusOptions): Promise<void | "granted" | "delayed" | "failed"> {

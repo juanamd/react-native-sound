@@ -343,6 +343,23 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	@ReactMethod
+	public void resetVolumeControlStream(final Promise promise) {
+		try {
+			final Activity activity = getCurrentActivity();
+			if (activity == null) {
+				promise.reject(new Exception("Null current activity"));
+			} else {
+				activity.setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
+				promise.resolve(null);
+			}
+			Log.d(TAG, "Reset volume control stream");
+		} catch (Exception e) {
+			Log.e(TAG, "Error on resetVolumeControlStream()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
 	public void requestAudioFocus(final ReadableMap options, final Promise promise) {
 		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
