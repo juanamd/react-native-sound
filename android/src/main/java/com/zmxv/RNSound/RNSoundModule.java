@@ -23,6 +23,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.io.File;
 import java.util.HashMap;
@@ -32,13 +33,13 @@ import java.util.Set;
 public class RNSoundModule extends ReactContextBaseJavaModule {
 
 	private static final String TAG = "RNSoundModule";
+	private static final String AUDIO_FOCUS_EVENT = "audio_focus_event";
 
 	private ReactApplicationContext context;
 	private Map<Integer, MediaPlayer> playerPool = new HashMap<>();
 	private Map<Integer, Callback> errorCallbackPool = new HashMap<>();
 	private AudioFocusRequest focusRequest;
 	private OnAudioFocusChangeListener afChangeListener;
-	private Callback onAudioFocus;
 
 	public RNSoundModule(ReactApplicationContext context) {
 		super(context);
@@ -409,22 +410,17 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 					else if (code == AudioManager.AUDIOFOCUS_LOSS) focusType = "loss";
 					else if (code == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) focusType = "lossTransient";
 					else if (code == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) focusType = "lossTransientCanDuck";
-
-					if (onAudioFocus != null) onAudioFocus.invoke(focusType);
+					try {
+						context
+							.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+							.emit(AUDIO_FOCUS_EVENT, focusType);
+					} catch (Exception e) {
+						Log.e(TAG, "Error emitting focus event", e);
+					}
 				}
 			};
 		}
 		return this.afChangeListener;
-	}
-
-	@ReactMethod
-	public void setAudioFocusListener(final Callback onFocus) {
-		try {
-			this.onAudioFocus = onFocus;
-			Log.d(TAG, "Set audio focus listener");
-		} catch (Exception e) {
-			Log.e(TAG, "Error on setAudioFocusListener()", e);
-		}
 	}
 
 	@ReactMethod

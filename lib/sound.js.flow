@@ -1,12 +1,14 @@
 // @flow
 // $FlowFixMe
-import { NativeModules } from "react-native";
+import { NativeModules, NativeEventEmitter } from "react-native";
 // $FlowFixMe
 import resolveAssetSource from "react-native/Libraries/Image/resolveAssetSource";
 
 const RNSound = NativeModules.RNSound;
 const IS_ANDROID = RNSound.IsAndroid;
 const IS_WINDOWS = RNSound.IsWindows;
+const eventEmitter = new NativeEventEmitter(RNSound);
+const AUDIO_FOCUS_EVENT = "audio_focus_event";
 
 const isAbsolutePath = (path: string) => /^(\/|http(s?)|asset)/.test(path);
 
@@ -25,14 +27,15 @@ const parseDataSource = (fileName: string, path?: string) => {
 let keyCounter = 0;
 
 type Status = "unloaded" | "loading" | "loaded";
-type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
-type FocusLoss = "loss" | "lossTransient" | "lossTransientMayDuck";
+export type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
+export type FocusLoss = "loss" | "lossTransient" | "lossTransientMayDuck";
+export type FocusEvent = "gain" | "loss" | "lossTransient" | "lossTransientMayDuck";
 
-type Options = {
+export type Options = {
 	useAlarmChannel?: boolean,
 };
 
-type FocusOptions = {
+export type FocusOptions = {
 	useAlarmChannel?: boolean,
 	audioFocusType?: FocusGain,
 };
@@ -60,8 +63,12 @@ class Sound {
 		if (IS_ANDROID) return await RNSound.requestAudioFocus(options);
 	}
 
-	static async setAudioFocusListener(onFocus: (focusType: "gain" | FocusLoss) => any) {
-		if (IS_ANDROID) await RNSound.setAudioFocusListener(onFocus);
+	static async addAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
+		if (IS_ANDROID) eventEmitter.addListener(AUDIO_FOCUS_EVENT, onFocus);
+	}
+
+	static async removeAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
+		if (IS_ANDROID) eventEmitter.removeListener(AUDIO_FOCUS_EVENT, onFocus);
 	}
 
 	static async abandonAudioFocus() {
