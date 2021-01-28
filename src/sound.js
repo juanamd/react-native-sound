@@ -41,7 +41,7 @@ export type FocusOptions = {
 };
 
 class Sound {
-	static async getSystemVolume(options: Options = {}) {
+	static async getSystemVolume(options: Options = {}): Promise<number | void> {
 		if (IS_ANDROID) return await RNSound.getSystemVolume(options);
 	}
 	
@@ -79,24 +79,24 @@ class Sound {
 		if (IS_ANDROID) await RNSound.setMute(value);
 	}
 
-	static setEnabled(value: boolean) {
-		if (!IS_ANDROID && !IS_WINDOWS) RNSound.enable(value);
+	static async setEnabled(value: boolean) {
+		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.enable(value);
 	}
 	
-	static setActive(value: boolean) {
-		if (!IS_ANDROID && !IS_WINDOWS) RNSound.setActive(value);
+	static async setActive(value: boolean) {
+		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.setActive(value);
 	}
 
-	static setMode(value: boolean) {
-		if (!IS_ANDROID && !IS_WINDOWS) RNSound.setMode(value);
+	static async setMode(value: boolean) {
+		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.setMode(value);
 	}
 	
-	static setCategory(value: string, mixWithOthers: boolean = false) {
-		if (!IS_ANDROID && !IS_WINDOWS) RNSound.setCategory(value, mixWithOthers);
+	static async setCategory(value: string, mixWithOthers: boolean = false) {
+		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.setCategory(value, mixWithOthers);
 	}
 	
-	static enableInSilenceMode(enabled: boolean) {
-		if (!IS_ANDROID && !IS_WINDOWS) RNSound.enableInSilenceMode(enabled);
+	static async enableInSilenceMode(enabled: boolean) {
+		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.enableInSilenceMode(enabled);
 	}
 
 	status: Status;
@@ -196,7 +196,7 @@ class Sound {
 		if (!IS_WINDOWS && this.isLoaded) await RNSound.setSpeed(this.key, value);
 	}
 
-	async getCurrentMillis(): number | Promise<number> {
+	async getCurrentMillis(): Promise<number> {
 		if (this.isLoaded) return await RNSound.getCurrentMillis(this.key);
 		return -1;
 	}
@@ -209,7 +209,7 @@ class Sound {
 		if (IS_ANDROID) await RNSound.setSpeakerphoneOn(this.key, value);
 	}
 
-	async isPlaying(): boolean | Promise<boolean> {
+	async isPlaying(): Promise<boolean> {
 		if (this.isLoaded) return await RNSound.isPlaying(this.key);
 		return false;
 	}
