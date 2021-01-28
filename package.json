@@ -1,6 +1,6 @@
 {
   "name": "react-native-sound",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "React Native module for playing sound clips on iOS, Android, and Windows",
   "main": "lib/sound.js",
   "types": "./types/sound.d.ts",

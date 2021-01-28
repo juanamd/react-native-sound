@@ -26,7 +26,7 @@ const parseDataSource = (fileName: string, path?: string) => {
 
 let keyCounter = 0;
 
-type Status = "unloaded" | "loading" | "loaded";
+export type Status = "unloaded" | "loading" | "loaded";
 export type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
 export type FocusLoss = "loss" | "lossTransient" | "lossTransientMayDuck";
 export type FocusEvent = "gain" | "loss" | "lossTransient" | "lossTransientMayDuck";

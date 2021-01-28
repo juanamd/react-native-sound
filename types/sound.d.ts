@@ -1,4 +1,5 @@
 declare module "react-native-sound" {
+	export type Status = "unloaded" | "loading" | "loaded";
 	export type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
 	export type FocusLoss = "loss" | "lossTransient" | "lossTransientMayDuck";
 	export type FocusEvent = "gain" | "loss" | "lossTransient" | "lossTransientMayDuck";
@@ -26,6 +27,13 @@ declare module "react-native-sound" {
 		static async setCategory(value: string, mixWithOthers: boolean = false): Promise<void>;
 		static async enableInSilenceMode(enabled: boolean): Promise<void>;
 
+		status: Status;
+		duration: number;
+		numberOfChannels: number;
+		numberOfLoops: number;
+		volume: number;
+		pan: number;
+		speed: number;
 		isLoaded: boolean;
 		setErrorCallback(onError: (error: PlaybackError) => void): void;
 		async load(fileName: string, path?: string, options: Options = {}): Promise<void>;
