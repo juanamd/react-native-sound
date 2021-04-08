@@ -12,20 +12,20 @@ declare module "react-native-sound" {
 	};
 
 	export default class {
-		static async getSystemVolume(options: Options = {}): Promise<number>;
-		static async setSystemVolume(value: number, options: Options = {}): Promise<void>;
-		static async setVolumeControlStream(options: Options = {}): Promise<void>;
-		static async resetVolumeControlStream(): Promise<void>;
-		static async requestAudioFocus(options: FocusOptions): Promise<void | "granted" | "delayed" | "failed">;
-		static async addAudioFocusListener(onFocus: (focusType: FocusEvent) => void): Promise<void>;
-		static async removeAudioFocusListener(onFocus: (focusType: FocusEvent) => void): Promise<void>;
-		static async abandonAudioFocus(): Promise<void>;
-		static async setSystemMute(value: boolean): Promise<void>;
-		static async setEnabled(value: boolean): Promise<void>;
-		static async setActive(value: boolean): Promise<void>;
-		static async setMode(value: boolean): Promise<void>;
-		static async setCategory(value: string, mixWithOthers: boolean = false): Promise<void>;
-		static async enableInSilenceMode(enabled: boolean): Promise<void>;
+		static getSystemVolume(options?: Options): Promise<number>;
+		static setSystemVolume(value: number, options?: Options): Promise<void>;
+		static setVolumeControlStream(options?: Options): Promise<void>;
+		static resetVolumeControlStream(): Promise<void>;
+		static requestAudioFocus(options: FocusOptions): Promise<void | "granted" | "delayed" | "failed">;
+		static addAudioFocusListener(onFocus: (focusType: FocusEvent) => void): Promise<void>;
+		static removeAudioFocusListener(onFocus: (focusType: FocusEvent) => void): Promise<void>;
+		static abandonAudioFocus(): Promise<void>;
+		static setSystemMute(value: boolean): Promise<void>;
+		static setEnabled(value: boolean): Promise<void>;
+		static setActive(value: boolean): Promise<void>;
+		static setMode(value: boolean): Promise<void>;
+		static setCategory(value: string, mixWithOthers?: boolean): Promise<void>;
+		static enableInSilenceMode(enabled: boolean): Promise<void>;
 
 		status: Status;
 		duration: number;
@@ -36,20 +36,20 @@ declare module "react-native-sound" {
 		speed: number;
 		isLoaded: boolean;
 		setErrorCallback(onError: (error: PlaybackError) => void): void;
-		async load(fileName: string, path?: string, options: Options = {}): Promise<void>;
-		async play(onEnd?: () => void): Promise<void>;
-		async pause(): Promise<void>;
-		async stop(): Promise<void>;
-		async reset(): Promise<void>;
-		async release(): Promise<void>;
-		async setVolume(value: number): Promise<void>;
-		async setPan(value: number): Promise<void>;
-		async setNumberOfLoops(value: number): Promise<void>;
-		async setSpeed(value: number): Promise<void>;
-		async getCurrentMillis(): Promise<number>;
-		async setCurrentMillis(ms: number): Promise<void>;
-		async setSpeakerphoneOn(value: boolean): Promise<void>;
-		async isPlaying(): Promise<boolean>;
+		load(fileName: string, path?: string, options?: Options): Promise<void>;
+		play(onEnd?: () => void): Promise<void>;
+		pause(): Promise<void>;
+		stop(): Promise<void>;
+		reset(): Promise<void>;
+		release(): Promise<void>;
+		setVolume(value: number): Promise<void>;
+		setPan(value: number): Promise<void>;
+		setNumberOfLoops(value: number): Promise<void>;
+		setSpeed(value: number): Promise<void>;
+		getCurrentMillis(): Promise<number>;
+		setCurrentMillis(ms: number): Promise<void>;
+		setSpeakerphoneOn(value: boolean): Promise<void>;
+		isPlaying(): Promise<boolean>;
 	}
 
 	export class PlaybackError {
