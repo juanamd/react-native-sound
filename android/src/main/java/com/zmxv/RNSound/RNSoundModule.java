@@ -1,6 +1,7 @@
 package com.zmxv.RNSound;
 
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.media.AudioAttributes;
@@ -537,6 +538,21 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 			promise.resolve(null);
 		} catch (Exception e) {
 			Log.e(TAG, "Error on setMute()", e);
+			promise.reject(e);
+		}
+	}
+
+	@ReactMethod
+	public void getCurrentInterruptionFilter(final Promise promise) {
+		try {
+			int filterStatus = 0;
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+				NotificationManager mgr = (NotificationManager) this.context.getSystemService(Context.NOTIFICATION_SERVICE);
+				filterStatus = mgr.getCurrentInterruptionFilter();
+			}
+			promise.resolve(filterStatus);
+		} catch (Exception e) {
+			Log.e(TAG, "Error on getCurrentInterruptionFilter()", e);
 			promise.reject(e);
 		}
 	}

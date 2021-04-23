@@ -26,7 +26,7 @@ const parseDataSource = (fileName: string, path?: string) => {
 
 let keyCounter = 0;
 
-type Status = "unloaded" | "loading" | "loaded";
+export type Status = "unloaded" | "loading" | "loaded";
 export type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
 export type FocusLoss = "loss" | "lossTransient" | "lossTransientMayDuck";
 export type FocusEvent = "gain" | "loss" | "lossTransient" | "lossTransientMayDuck";
@@ -97,6 +97,17 @@ class Sound {
 	
 	static async enableInSilenceMode(enabled: boolean) {
 		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.enableInSilenceMode(enabled);
+	}
+
+	static async getCurrentInterruptionFilter() {
+		if (!IS_ANDROID) return "unknown";
+		const filterStatus = await RNSound.getCurrentInterruptionFilter();
+		if (filterStatus === 0) return "unknown";
+		if (filterStatus === 1) return "all";
+		if (filterStatus === 2) return "priority";
+		if (filterStatus === 3) return "none";
+		if (filterStatus === 4) return "alarms";
+		return "unknown";
 	}
 
 	status: Status;

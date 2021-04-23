@@ -26,6 +26,7 @@ declare module "react-native-sound" {
 		static setMode(value: boolean): Promise<void>;
 		static setCategory(value: string, mixWithOthers?: boolean): Promise<void>;
 		static enableInSilenceMode(enabled: boolean): Promise<void>;
+		static getCurrentInterruptionFilter(): Promise<"unknown" | "all" | "priority" | "none" | "alarms">;
 
 		status: Status;
 		duration: number;

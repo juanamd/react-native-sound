@@ -99,6 +99,17 @@ class Sound {
 		if (!IS_ANDROID && !IS_WINDOWS) await RNSound.enableInSilenceMode(enabled);
 	}
 
+	static async getCurrentInterruptionFilter() {
+		if (!IS_ANDROID) return "unknown";
+		const filterStatus = await RNSound.getCurrentInterruptionFilter();
+		if (filterStatus === 0) return "unknown";
+		if (filterStatus === 1) return "all";
+		if (filterStatus === 2) return "priority";
+		if (filterStatus === 3) return "none";
+		if (filterStatus === 4) return "alarms";
+		return "unknown";
+	}
+
 	status: Status;
 	key: number;
 	duration: number;
