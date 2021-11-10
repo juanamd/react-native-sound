@@ -1,3 +1,5 @@
+import { EmitterSubscription } from "react-native";
+
 declare module "react-native-sound" {
 	export type Status = "unloaded" | "loading" | "loaded";
 	export type FocusGain = "gain" | "gainTransient" | "gainTransientMayDuck" | "gainTransientExclusive";
@@ -17,8 +19,8 @@ declare module "react-native-sound" {
 		static setVolumeControlStream(options?: Options): Promise<void>;
 		static resetVolumeControlStream(): Promise<void>;
 		static requestAudioFocus(options: FocusOptions): Promise<void | "granted" | "delayed" | "failed">;
-		static addAudioFocusListener(onFocus: (focusType: FocusEvent) => void): Promise<void>;
-		static removeAudioFocusListener(onFocus: (focusType: FocusEvent) => void): Promise<void>;
+		static addAudioFocusListener(onFocus: (focusType: FocusEvent) => void): EmitterSubscription;
+		static removeAudioFocusListener(onFocus: (focusType: FocusEvent) => void): void;
 		static abandonAudioFocus(): Promise<void>;
 		static setSystemMute(value: boolean): Promise<void>;
 		static setEnabled(value: boolean): Promise<void>;
