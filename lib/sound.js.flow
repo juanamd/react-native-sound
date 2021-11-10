@@ -63,11 +63,11 @@ class Sound {
 		if (IS_ANDROID) return await RNSound.requestAudioFocus(options);
 	}
 
-	static async addAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
-		if (IS_ANDROID) eventEmitter.addListener(AUDIO_FOCUS_EVENT, onFocus);
+	static addAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
+		if (IS_ANDROID) return eventEmitter.addListener(AUDIO_FOCUS_EVENT, onFocus);
 	}
 
-	static async removeAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
+	static removeAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
 		if (IS_ANDROID) eventEmitter.removeListener(AUDIO_FOCUS_EVENT, onFocus);
 	}
 
