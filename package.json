@@ -1,7 +1,7 @@
 {
   "name": "react-native-sound",
-  "version": "1.7.2",
-  "description": "React Native module for playing sound clips on iOS, Android, and Windows",
+  "version": "2.0.0",
+  "description": "React Native module for playing sound clips on Android",
   "main": "lib/sound.js",
   "types": "./types/sound.d.ts",
   "scripts": {
@@ -21,7 +21,7 @@
   "author": "Zhen Wang <z@zmxv.com> (http://blog.zmxv.com)",
   "license": "MIT",
   "peerDependencies": {
-    "react-native": ">=0.8.0"
+    "react-native": ">=0.76.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.16.0",
@@ -34,5 +34,13 @@
     "flow-bin": "^0.131.0",
     "flow-copy-source": "^2.0.7"
   },
-  "dependencies": {}
+  "dependencies": {},
+  "codegenConfig": {
+    "name": "RNSoundSpec",
+    "type": "modules",
+    "jsSrcsDir": "src",
+    "android": {
+      "javaPackageName": "com.zmxv.RNSound"
+    }
+  }
 }

@@ -1,33 +1,47 @@
 package com.zmxv.RNSound;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
-import com.facebook.react.ReactPackage;
+import com.facebook.react.BaseReactPackage;
 import com.facebook.react.bridge.NativeModule;
-import com.facebook.react.bridge.JavaScriptModule;
 import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.uimanager.ViewManager;
+import com.facebook.react.module.model.ReactModuleInfo;
+import com.facebook.react.module.model.ReactModuleInfoProvider;
 
-public class RNSoundPackage implements ReactPackage {
+import java.util.HashMap;
+import java.util.Map;
 
+public class RNSoundPackage extends BaseReactPackage {
+
+	@Nullable
 	@Override
-	public List<NativeModule> createNativeModules (ReactApplicationContext context) {
-		List<NativeModule> modules = new ArrayList<>();
-		modules.add(new RNSoundModule(context));
-		return modules;
+	public NativeModule getModule(@NonNull String name, @NonNull ReactApplicationContext context) {
+		if (name.equals(RNSoundModule.NAME)) {
+			return new RNSoundModule(context);
+		}
+		return null;
 	}
 
-	// Deprecated RN 0.47
-	// @Override
-	public List<Class<? extends JavaScriptModule>> createJSModules() {
-		return Collections.emptyList();
-	}
-
+	@NonNull
 	@Override
-	public List<ViewManager> createViewManagers(ReactApplicationContext context) {
-		return Collections.emptyList();
+	public ReactModuleInfoProvider getReactModuleInfoProvider() {
+		return new ReactModuleInfoProvider() {
+			@NonNull
+			@Override
+			public Map<String, ReactModuleInfo> getReactModuleInfos() {
+				final Map<String, ReactModuleInfo> moduleInfos = new HashMap<>();
+				moduleInfos.put(RNSoundModule.NAME, new ReactModuleInfo(
+					RNSoundModule.NAME,
+					RNSoundModule.NAME,
+					false, // canOverrideExistingModule
+					false, // needsEagerInit
+					false, // isCxxModule
+					true // isTurboModule
+				));
+				return moduleInfos;
+			}
+		};
 	}
-	
+
 }

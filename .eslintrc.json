@@ -5,12 +5,15 @@
         "node": true
     },
     "extends": [
-		"eslint:recommended",
-		"plugin:flowtype/recommended"
+        "eslint:recommended",
+        "plugin:flowtype/recommended"
     ],
     "parser": "@babel/eslint-parser",
     "parserOptions": {
-        "sourceType": "module"
+        "sourceType": "module",
+        "babelOptions": {
+            "configFile": "./.babelrc"
+        }
     },
     "plugins": [
         "flowtype"

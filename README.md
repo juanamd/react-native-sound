@@ -1,132 +1,85 @@
 # react-native-sound
 
-React Native module for playing sound clips on iOS, Android, and Windows.
+React Native module for playing sound clips on Android, built as a **TurboModule** for the React Native **New Architecture**.
+
+> Android only. The legacy architecture, iOS and Windows are not supported by this branch.
+
+## Requirements
+
+- React Native >= 0.76 with the New Architecture enabled
+- Android minSdk 24
 
 ## Feature matrix
 
-Feature | iOS | Android | Windows
----|---|---|---
-Load sound from the app bundle | ✓ | ✓ | ✓
-Load sound from other directories | ✓ | ✓ | ✓
-Load sound from the network | ✓ | ✓ |
-Play sound | ✓ | ✓ | ✓
-Playback completion callback | ✓ | ✓ | ✓
-Pause | ✓ | ✓ | ✓
-Resume | ✓ | ✓ | ✓
-Stop | ✓ | ✓ | ✓
-Reset |  | ✓ | 
-Release resource | ✓ | ✓ | ✓
-Get duration | ✓ | ✓ | ✓
-Get number of channels | ✓ |   |
-Get/set volume | ✓ | ✓ | ✓
-Get/set system volume |   | ✓ |
-Get/set pan | ✓ |   |
-Get/set loops | ✓ | ✓ | ✓
-Get/set current time | ✓ | ✓ | ✓
-Set speed | ✓ | ✓ |
+Feature | Android
+---|---
+Load sound from the app bundle (`res/raw`) | ✓
+Load sound from other directories | ✓
+Load sound from the network | ✓
+Play sound | ✓
+Playback completion callback | ✓
+Pause / resume | ✓
+Stop | ✓
+Reset | ✓
+Release resource | ✓
+Get duration | ✓
+Get/set volume | ✓
+Get/set system volume | ✓
+Get/set loops | ✓
+Get/set current time | ✓
+Set speed | ✓
+Audio focus (request / abandon / events) | ✓
 
 ## Installation
 
-First install the npm package from your app directory:
-
-```javascript
-npm install react-native-sound --save
+```sh
+npm https://github.com/juanamd/react-native-sound
 ```
 
-Then link it automatically using:
-
-```javascript
-react-native link react-native-sound
-```
-
-### Manual Installation Notes
-
-Please see the Wiki for these details https://github.com/zmxv/react-native-sound/wiki/Installation
-
-
-## Help with React-Native-Sound
-* For react-native-sound developers  [![Gitter chat](https://badges.gitter.im/gitterHQ/services.png)](https://gitter.im/react-native-sound/developers)
-* For help using react-native-sound  [![Gitter chat](https://badges.gitter.im/gitterHQ/services.png)](https://gitter.im/react-native-sound/Help)
-
-## Demo project
-
-https://github.com/zmxv/react-native-sound-demo
+The module is autolinked. The native spec is processed by React Native codegen (see `codegenConfig` in `package.json`), so no manual setup is needed.
 
 ## Basic usage
 
-First you'll need to add audio files to your project.
-
-- Android: Save your sound clip files under the directory `android/app/src/main/res/raw`. Note that files in this directory must be lowercase and underscored (e.g. my_file_name.mp3) and that subdirectories are not supported by Android.
-- iOS: Open Xcode and add your sound files to the project (Right-click the project and select `Add Files to [PROJECTNAME]`)
+Save your sound clip files under `android/app/src/main/res/raw`. File names must be lowercase and underscored (e.g. `my_file_name.mp3`) and subdirectories are not supported.
 
 ```js
-// Import the react-native-sound module
-var Sound = require('react-native-sound');
+import Sound from "react-native-sound";
 
-// Enable playback in silence mode (iOS only)
-Sound.setCategory('Playback');
+const whoosh = new Sound();
+whoosh.setErrorCallback(error => console.log("playback error", error.toString()));
 
-// Load the sound file 'whoosh.mp3' from the app bundle
-// See notes below about preloading sounds within initialization code below.
-var whoosh = new Sound('whoosh.mp3', Sound.MAIN_BUNDLE, (error) => {
-  if (error) {
-    console.log('failed to load the sound', error);
-    return;
-  }
-  // loaded successfully
-  console.log('duration in seconds: ' + whoosh.getDuration() + 'number of channels: ' + whoosh.getNumberOfChannels());
-});
+// Load 'whoosh.mp3' from res/raw
+await whoosh.load("whoosh.mp3");
+console.log("duration in ms:", whoosh.duration);
 
-// Play the sound with an onEnd callback
-whoosh.play((success) => {
-  if (success) {
-    console.log('successfully finished playing');
-  } else {
-    console.log('playback failed due to audio decoding errors');
-    // reset the player to its uninitialized state (android only)
-    // this is the only option to recover after an error occured and use the player again
-    whoosh.reset();
-  }
-});
+// Play with an onEnd callback
+await whoosh.play(() => console.log("finished playing"));
 
-// Reduce the volume by half
-whoosh.setVolume(0.5);
+await whoosh.setVolume(0.5);
+await whoosh.setNumberOfLoops(-1); // loop until stop() is called
+await whoosh.setSpeed(1.5);
+await whoosh.setCurrentMillis(2500);
+console.log("at", await whoosh.getCurrentMillis());
 
-// Position the sound to the full right in a stereo field
-whoosh.setPan(1);
+await whoosh.pause();
+await whoosh.stop();
 
-// Loop indefinitely until stop() is called
-whoosh.setNumberOfLoops(-1);
+// Release the native player when you are done
+await whoosh.release();
+```
 
-// Get properties of the player instance
-console.log('volume: ' + whoosh.getVolume());
-console.log('pan: ' + whoosh.getPan());
-console.log('loops: ' + whoosh.getNumberOfLoops());
+Load from other locations:
 
-// Seek to a specific point in seconds
-whoosh.setCurrentTime(2.5);
-
-// Get the current playback point in seconds
-whoosh.getCurrentTime((seconds) => console.log('at ' + seconds));
-
-// Pause the sound
-whoosh.pause();
-
-// Stop the sound and rewind to the beginning
-whoosh.stop(() => {
-  // Note: If you want to play a sound after stopping and rewinding it,
-  // it is important to call play() in a callback.
-  whoosh.play();
-});
-
-// Release the audio player resource
-whoosh.release();
+```js
+await sound.load("https://example.com/clip.mp3");   // network
+await sound.load("clip.mp3", "/path/to/directory");  // file system
 ```
 
 ## Notes
-- To minimize playback delay, you may want to preload a sound file without calling `play()` (e.g. `var s = new Sound(...);`) during app initialization. This also helps avoid a race condition where `play()` may be called before loading of the sound is complete, which results in no sound but no error because loading is still being processed.
-- You can play multiple sound files at the same time. Under the hood, this module uses `AVAudioSessionCategoryAmbient` to mix sounds on iOS.
-- You may reuse a `Sound` instance for multiple playbacks.
-- On iOS, the module wraps `AVAudioPlayer` that supports aac, aiff, mp3, wav etc. The full list of supported formats can be found at https://developer.apple.com/library/content/documentation/MusicAudio/Conceptual/CoreAudioOverview/SupportedAudioFormatsMacOSX/SupportedAudioFormatsMacOSX.html
-- On Android, the module wraps `android.media.MediaPlayer`. The full list of supported formats can be found at https://developer.android.com/guide/topics/media/media-formats.html
-- You may chain non-getter calls, for example, `sound.setVolume(.5).setPan(.5).play()`.
+
+- To minimize playback delay, preload a sound with `load()` during app initialization.
+- You can play multiple sounds at the same time and reuse a `Sound` instance for multiple playbacks.
+- The module wraps `android.media.MediaPlayer`. Supported formats: https://developer.android.com/guide/topics/media/media-formats.html
+- `load()` rejects if the media cannot be loaded. The player is released automatically, so you can call `load()` again.
+- `setErrorCallback` and the `onEnd` callback passed to `play` are native callbacks and can each be invoked only once per registration.
+- Audio focus changes are delivered through `Sound.addAudioFocusListener(...)`, which returns a subscription with `remove()`.

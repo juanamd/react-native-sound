@@ -16,24 +16,29 @@ import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
-import com.facebook.react.bridge.ReactContextBaseJavaModule;
-import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class RNSoundModule extends ReactContextBaseJavaModule {
+@ReactModule(name = RNSoundModule.NAME)
+public class RNSoundModule extends NativeRNSoundSpec {
 
-	private static final String TAG = "RNSoundModule";
+	public static final String NAME = "RNSound";
+
+	private static final String TAG = "RNSound";
 	private static final String AUDIO_FOCUS_EVENT = "audio_focus_event";
 
 	private ReactApplicationContext context;
@@ -48,8 +53,15 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		Log.d(TAG, "Initialized");
 	}
 
-	@ReactMethod
-	public void setErrorCallback(final Integer key, final Callback onError) {
+	@Override
+	@NonNull
+	public String getName() {
+		return NAME;
+	}
+
+	@Override
+	public void setErrorCallback(final double keyValue, final Callback onError) {
+		final int key = (int) keyValue;
 		try {
 			this.errorCallbackPool.put(key, onError);
 			Log.d(TAG, key + " - Added error callback");
@@ -58,29 +70,35 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void load(final Integer key, final String dataSource, final ReadableMap options, final Promise promise) {
+	@Override
+	public void load(final double keyValue, final String dataSource, final ReadableMap options, final Promise promise) {
+		final int key = (int) keyValue;
 		Log.d(TAG, key + " - Loading " + dataSource + " ...");
+		final AtomicBoolean settled = new AtomicBoolean(false);
 		try {
 			MediaPlayer player = new MediaPlayer();
 			this.playerPool.put(key, player);
-			player.setOnErrorListener(this.createOnErrorListener(key));
-			player.setOnPreparedListener(this.createOnPreparedListener(key, promise));
+			player.setOnErrorListener(this.createOnErrorListener(key, promise, settled));
+			player.setOnPreparedListener(this.createOnPreparedListener(key, promise, settled));
 			this.applyAudioOptions(player, options);
 			this.setMediaPlayerDataSource(player, dataSource);
 			player.prepareAsync();
 			Log.d(TAG, key + " - Load complete. Waiting for onPrepared...");
 		} catch (Exception e) {
 			Log.e(TAG,  key + " - Error on load()", e);
-			promise.reject(e);
+			if (settled.compareAndSet(false, true)) promise.reject(e);
 		}
 	}
 
-	private OnErrorListener createOnErrorListener(final Integer key) {
+	private OnErrorListener createOnErrorListener(final Integer key, final Promise loadPromise, final AtomicBoolean loadSettled) {
 		return new OnErrorListener() {
 			@Override
 			public synchronized boolean onError(MediaPlayer mediaPlayer, int what, int extra) {
 				Log.e(TAG, key + " - Error. What: " + what + " extra: " + extra);
+				// If the error happens while loading, the load() promise would otherwise never settle
+				if (loadSettled.compareAndSet(false, true)) {
+					loadPromise.reject("E_LOAD_FAILED", "Failed to load media. What: " + what + " extra: " + extra);
+				}
 				WritableMap errorMap = Arguments.createMap();
 				errorMap.putInt("what", what);
 				errorMap.putInt("extra", extra);
@@ -96,10 +114,11 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		};
 	}
 
-	private OnPreparedListener createOnPreparedListener(final Integer key, final Promise promise) {
+	private OnPreparedListener createOnPreparedListener(final Integer key, final Promise promise, final AtomicBoolean loadSettled) {
 		return new OnPreparedListener() {
 			@Override
 			public synchronized void onPrepared(MediaPlayer mediaPlayer) {
+				if (!loadSettled.compareAndSet(false, true)) return;
 				try {
 					WritableMap map = Arguments.createMap();
 					map.putInt("duration", mediaPlayer.getDuration());
@@ -114,14 +133,10 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	}
 
 	private void applyAudioOptions(final MediaPlayer mediaPlayer, final ReadableMap options) {
-		if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-			mediaPlayer.setAudioStreamType(getAudioStreamType(options));
-		} else {
-			mediaPlayer.setAudioAttributes((AudioAttributes) getAudioAttributes(options));
-		}
+		mediaPlayer.setAudioAttributes(getAudioAttributes(options));
 	}
 
-	private Object getAudioAttributes(final ReadableMap options) {
+	private AudioAttributes getAudioAttributes(final ReadableMap options) {
 		return new AudioAttributes.Builder()
 			.setUsage(useAlarmChannel(options) ? AudioAttributes.USAGE_ALARM : AudioAttributes.USAGE_MEDIA)
 			.setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
@@ -174,8 +189,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void setOnCompletionListener(final Integer key, final Callback onComplete) {
+	@Override
+	public void setOnCompletionListener(final double keyValue, final Callback onComplete) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null && !player.isPlaying()) {
@@ -203,8 +219,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		};
 	}
 
-	@ReactMethod
-	public void play(final Integer key, final Promise promise) {
+	@Override
+	public void play(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player == null) {
@@ -221,8 +238,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void pause(final Integer key, final Promise promise) {
+	@Override
+	public void pause(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null && player.isPlaying()) player.pause();
@@ -234,8 +252,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void stop(final Integer key, final Promise promise) {
+	@Override
+	public void stop(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null && player.isPlaying()) {
@@ -250,8 +269,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void reset(final Integer key, final Promise promise) {
+	@Override
+	public void reset(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null) player.reset();
@@ -263,8 +283,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void release(final Integer key, final Promise promise) {
+	@Override
+	public void release(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null) {
@@ -274,6 +295,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 				player.release();
 				this.playerPool.remove(key);
 			}
+			this.errorCallbackPool.remove(key);
 			promise.resolve(null);
 			Log.d(TAG, key + " - Released!");
 		} catch (Exception e) {
@@ -282,27 +304,28 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void setVolume(final Integer key, final Float left, final Float right, final Promise promise) {
+	@Override
+	public void setVolume(final double keyValue, final double left, final double right, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
-			if (player != null) player.setVolume(left, right);
+			if (player != null) player.setVolume((float) left, (float) right);
 			promise.resolve(null);
-			Log.d(TAG, key + " - Set volume - Left: " + left.toString() + ", Right: " + right.toString());
+			Log.d(TAG, key + " - Set volume - Left: " + left + ", Right: " + right);
 		} catch (Exception e) {
 			Log.e(TAG, "Error on setVolume()", e);
 			promise.reject(e);
 		}
 	}
 
-	@ReactMethod
+	@Override
 	public void getSystemVolume(final ReadableMap options, final Promise promise) {
 		try {
 			AudioManager audio = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 			int channel = this.getAudioStreamType(options);
 			int streamVolume = audio.getStreamVolume(channel);
 			int streamMaxVolume = audio.getStreamMaxVolume(channel);
-			float volume = (float) streamVolume / streamMaxVolume;
+			double volume = (double) streamVolume / streamMaxVolume;
 			promise.resolve(volume);
 			Log.d(TAG, "Get system volume");
 		} catch (Exception e) {
@@ -311,12 +334,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void setSystemVolume(final Float value, final ReadableMap options, final Promise promise) {
+	@Override
+	public void setSystemVolume(final double value, final ReadableMap options, final Promise promise) {
 		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
 			int channel = this.getAudioStreamType(options);
-			int volume = Math.round(audioManager.getStreamMaxVolume(channel) * value);
+			int volume = (int) Math.round(audioManager.getStreamMaxVolume(channel) * value);
 			audioManager.setStreamVolume(channel, volume, 0);
 			promise.resolve(null);
 			Log.d(TAG, "Set system volume to: " + volume);
@@ -326,7 +349,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
+	@Override
 	public void setVolumeControlStream(final ReadableMap options, final Promise promise) {
 		try {
 			final Activity activity = getCurrentActivity();
@@ -344,7 +367,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
+	@Override
 	public void resetVolumeControlStream(final Promise promise) {
 		try {
 			final Activity activity = getCurrentActivity();
@@ -361,7 +384,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
+	@Override
 	public void requestAudioFocus(final ReadableMap options, final Promise promise) {
 		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
@@ -375,7 +398,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 				else promise.resolve("failed");
 			} else {
 				this.focusRequest = new AudioFocusRequest.Builder(getAudioFocusType(options))
-					.setAudioAttributes((AudioAttributes) getAudioAttributes(options))
+					.setAudioAttributes(getAudioAttributes(options))
 					.setOnAudioFocusChangeListener(getAudioFocusListener())
 					.build();
 				int result = audioManager.requestAudioFocus(focusRequest);
@@ -393,12 +416,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 	private int getAudioFocusType(final ReadableMap options) {
 		if (!options.hasKey("audioFocusType")) return AudioManager.AUDIOFOCUS_GAIN;
 		String type = options.getString("audioFocusType");
-		if (type == "gainTransient") return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT;
-		if (type == "gainTransientMayDuck") return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK;
-		if (type == "gainTransientExclusive") {
-			if (Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT) return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT;
-			else return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE;
-		}
+		if ("gainTransient".equals(type)) return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT;
+		if ("gainTransientMayDuck".equals(type)) return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK;
+		if ("gainTransientExclusive".equals(type)) return AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE;
 		return AudioManager.AUDIOFOCUS_GAIN;
 	}
 
@@ -424,7 +444,7 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		return this.afChangeListener;
 	}
 
-	@ReactMethod
+	@Override
 	public void abandonAudioFocus(final Promise promise) {
 		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
@@ -441,8 +461,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void setLooping(final Integer key, final boolean looping, final Promise promise) {
+	@Override
+	public void setLooping(final double keyValue, final boolean looping, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null) player.setLooping(looping);
@@ -454,34 +475,37 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void setSpeed(final Integer key, final Float speed, final Promise promise) {
+	@Override
+	public void setSpeed(final double keyValue, final double speed, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
-			if (player != null) player.setPlaybackParams(player.getPlaybackParams().setSpeed(speed));
+			if (player != null) player.setPlaybackParams(player.getPlaybackParams().setSpeed((float) speed));
 			promise.resolve(null);
-			Log.d(TAG, key + " - Set speed to " + speed.toString());
+			Log.d(TAG, key + " - Set speed to " + speed);
 		} catch (Exception e) {
 			Log.e(TAG, "Error on setSpeed()", e);
 			promise.reject(e);
 		}
 	}
 
-	@ReactMethod
-	public void setCurrentMillis(final Integer key, final int ms, final Promise promise) {
+	@Override
+	public void setCurrentMillis(final double keyValue, final double ms, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
-			if (player != null) player.seekTo(ms);
+			if (player != null) player.seekTo((int) ms);
 			promise.resolve(null);
-			Log.d(TAG, key + " - Set current millis to: " + Integer.toString(ms));
+			Log.d(TAG, key + " - Set current millis to: " + (int) ms);
 		} catch (Exception e) {
 			Log.e(TAG, "Error on setCurrentMillis()", e);
 			promise.reject(e);
 		}
 	}
 
-	@ReactMethod
-	public void getCurrentMillis(final Integer key, final Promise promise) {
+	@Override
+	public void getCurrentMillis(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			int ms = player != null ? player.getCurrentPosition() : -1;
@@ -493,8 +517,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void isPlaying(final Integer key, final Promise promise) {
+	@Override
+	public void isPlaying(final double keyValue, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			boolean isPlaying = player != null ? player.isPlaying() : false;
@@ -506,8 +531,9 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
-	public void setSpeakerphoneOn(final Integer key, final boolean speaker, final Promise promise) {
+	@Override
+	public void setSpeakerphoneOn(final double keyValue, final boolean speaker, final Promise promise) {
+		final int key = (int) keyValue;
 		try {
 			MediaPlayer player = this.playerPool.get(key);
 			if (player != null) {
@@ -524,16 +550,12 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
+	@Override
 	public void setMute(final boolean isMute, final Promise promise) {
 		try {
 			AudioManager audioManager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-				if (isMute)	audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
-				else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
-			} else {
-				audioManager.setStreamMute(AudioManager.STREAM_MUSIC, isMute);
-			}
+			if (isMute) audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0);
+			else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
 			Log.d(TAG, "Set mute to: " + isMute);
 			promise.resolve(null);
 		} catch (Exception e) {
@@ -542,39 +564,24 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 		}
 	}
 
-	@ReactMethod
+	@Override
 	public void getCurrentInterruptionFilter(final Promise promise) {
 		try {
-			int filterStatus = 0;
-			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-				NotificationManager mgr = (NotificationManager) this.context.getSystemService(Context.NOTIFICATION_SERVICE);
-				filterStatus = mgr.getCurrentInterruptionFilter();
-			}
-			promise.resolve(filterStatus);
+			NotificationManager mgr = (NotificationManager) this.context.getSystemService(Context.NOTIFICATION_SERVICE);
+			promise.resolve(mgr.getCurrentInterruptionFilter());
 		} catch (Exception e) {
 			Log.e(TAG, "Error on getCurrentInterruptionFilter()", e);
 			promise.reject(e);
 		}
 	}
 
-	@Override
-	public String getName() {
-		return "RNSound";
-	}
-
-	@Override
-	public Map<String, Object> getConstants() {
-		final Map<String, Object> constants = new HashMap<>();
-		constants.put("IsAndroid", true);
-		return constants;
-	}
-
 	/**
-	* Ensure any audios that are playing when app exits are stopped and released
-	*/
+	 * Ensure any audios that are playing when the app exits are stopped and released.
+	 * invalidate() replaces onCatalystInstanceDestroy() on the New Architecture.
+	 */
 	@Override
-	public void onCatalystInstanceDestroy() {
-		super.onCatalystInstanceDestroy();
+	public void invalidate() {
+		super.invalidate();
 
 		Set<Map.Entry<Integer, MediaPlayer>> entries = playerPool.entrySet();
 		for (Map.Entry<Integer, MediaPlayer> entry : entries) {
@@ -592,15 +599,16 @@ public class RNSoundModule extends ReactContextBaseJavaModule {
 			}
 		}
 		entries.clear();
+		errorCallbackPool.clear();
 	}
 
-	@ReactMethod
+	@Override
 	public void addListener(String eventName) {
 		// Keep: Required for RN built in Event Emitter Calls.
 	}
 
-	@ReactMethod
-	public void removeListeners(Integer count) {
+	@Override
+	public void removeListeners(double count) {
 		// Keep: Required for RN built in Event Emitter Calls.
 	}
 
