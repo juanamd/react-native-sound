@@ -21,7 +21,7 @@
   "author": "Zhen Wang <z@zmxv.com> (http://blog.zmxv.com)",
   "license": "MIT",
   "peerDependencies": {
-    "react-native": ">=0.76.0"
+    "react-native": ">=0.78.0"
   },
   "devDependencies": {
     "@babel/cli": "^7.16.0",

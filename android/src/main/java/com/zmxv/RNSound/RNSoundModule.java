@@ -25,7 +25,6 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.module.annotations.ReactModule;
-import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.io.File;
 import java.util.HashMap;
@@ -37,9 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RNSoundModule extends NativeRNSoundSpec {
 
 	public static final String NAME = "RNSound";
-
 	private static final String TAG = "RNSound";
-	private static final String AUDIO_FOCUS_EVENT = "audio_focus_event";
 
 	private ReactApplicationContext context;
 	private Map<Integer, MediaPlayer> playerPool = new HashMap<>();
@@ -432,9 +429,9 @@ public class RNSoundModule extends NativeRNSoundSpec {
 					else if (code == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) focusType = "lossTransient";
 					else if (code == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) focusType = "lossTransientCanDuck";
 					try {
-						context
-							.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-							.emit(AUDIO_FOCUS_EVENT, focusType);
+						WritableMap payload = Arguments.createMap();
+						payload.putString("focusType", focusType);
+						emitOnAudioFocusChange(payload);
 					} catch (Exception e) {
 						Log.e(TAG, "Error emitting focus event", e);
 					}
@@ -600,16 +597,6 @@ public class RNSoundModule extends NativeRNSoundSpec {
 		}
 		entries.clear();
 		errorCallbackPool.clear();
-	}
-
-	@Override
-	public void addListener(String eventName) {
-		// Keep: Required for RN built in Event Emitter Calls.
-	}
-
-	@Override
-	public void removeListeners(double count) {
-		// Keep: Required for RN built in Event Emitter Calls.
 	}
 
 }

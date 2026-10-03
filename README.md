@@ -6,7 +6,7 @@ React Native module for playing sound clips on Android, built as a **TurboModule
 
 ## Requirements
 
-- React Native >= 0.76 with the New Architecture enabled
+- React Native >= 0.78 with the New Architecture enabled
 - Android minSdk 24
 
 ## Feature matrix

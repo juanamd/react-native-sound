@@ -1,6 +1,6 @@
 // @flow
 // $FlowFixMe
-import type { TurboModule } from "react-native";
+import type { CodegenTypes, TurboModule } from "react-native";
 // $FlowFixMe
 import { TurboModuleRegistry } from "react-native";
 
@@ -22,12 +22,17 @@ type LoadResult = $ReadOnly<{
 	duration: number,
 }>;
 
+type AudioFocusEvent = $ReadOnly<{
+	focusType: string,
+}>;
+
 /**
  * Codegen spec for the Android RNSound TurboModule.
  *
  * Notes:
  * - Every `number` here becomes a Java `double`, so the player key arrives as a double.
  * - Callbacks (setErrorCallback / setOnCompletionListener) can only be invoked once per registration.
+ * - onAudioFocusChange is a codegen event emitter: native emits it with emitOnAudioFocusChange().
  */
 export interface Spec extends TurboModule {
 	// Player lifecycle
@@ -60,10 +65,7 @@ export interface Spec extends TurboModule {
 	// Audio focus
 	+requestAudioFocus: (options: FocusOptions) => Promise<string>;
 	+abandonAudioFocus: () => Promise<void>;
-
-	// Required by NativeEventEmitter (audio focus events)
-	+addListener: (eventName: string) => void;
-	+removeListeners: (count: number) => void;
+	+onAudioFocusChange: CodegenTypes.EventEmitter<AudioFocusEvent>;
 }
 
 export default (TurboModuleRegistry.getEnforcing<Spec>("RNSound"): Spec);

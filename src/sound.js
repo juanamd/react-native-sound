@@ -1,13 +1,10 @@
 // @flow
 // $FlowFixMe
-import { NativeEventEmitter, Image } from "react-native";
+import { Image } from "react-native";
 import RNSound from "./NativeRNSound";
 
-const eventEmitter = new NativeEventEmitter(RNSound);
-const AUDIO_FOCUS_EVENT = "audio_focus_event";
-
-// Subscriptions are tracked per listener so removeAudioFocusListener() keeps working
-// on React Native versions where EventEmitter.removeListener() no longer exists.
+// Subscriptions are tracked per listener so removeAudioFocusListener() can find
+// the subscription that belongs to a given callback.
 const audioFocusSubscriptions: Map<Function, Array<{ remove: () => void }>> = new Map();
 
 const isAbsolutePath = (path: string) => /^(\/|http(s?)|asset)/.test(path);
@@ -64,7 +61,7 @@ class Sound {
 	}
 
 	static addAudioFocusListener(onFocus: (focusType: FocusEvent) => any) {
-		const subscription = eventEmitter.addListener(AUDIO_FOCUS_EVENT, onFocus);
+		const subscription = RNSound.onAudioFocusChange(event => onFocus(event.focusType));
 		const subscriptions = audioFocusSubscriptions.get(onFocus) || [];
 		subscriptions.push(subscription);
 		audioFocusSubscriptions.set(onFocus, subscriptions);
